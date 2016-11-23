@@ -1,0 +1,15 @@
+Name: equipe_viampietro
+IconPath: MyTeam.png
+SoundPath: MyTeam.wav
+Description: |
+    Mon equipe viampietro
+BrainsPackage: myteam
+AgentsBrainClasses:
+    WarBase: WarBaseBrainController
+    WarExplorer: WarExplorerBrainController
+    WarLight: WarLightBrainController
+    WarHeavy: WarHeavyBrainController
+    WarRocketLauncher: WarRocketLauncherBrainController
+    WarKamikaze: WarKamikazeBrainController
+    WarEngineer: WarEngineerBrainController
+    WarTurret: WarTurretBrainController
