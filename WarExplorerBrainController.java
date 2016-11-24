@@ -15,12 +15,16 @@ public abstract class WarExplorerBrainController extends WarExplorerBrain {
 	private boolean _starving;
 	private int idBase;
 
+	
+	
 	public WarExplorerBrainController() {
 		super();
 
 		_starving = false;
 	}
 
+	
+	
 	@Override
 	public String action() {
 		setDebugString("searching food");
@@ -29,6 +33,15 @@ public abstract class WarExplorerBrainController extends WarExplorerBrain {
 			return WarExplorer.ACTION_MOVE;
 		}
 
+		for(WarMessage msg : getMessages()) {
+			if(msg.getMessage().equals("bring food to base")) {
+				if(!isBagEmpty()) {
+					setHeading(msg.getAngle());
+					return ACTION_MOVE;
+				}
+			}
+		}
+		
 		List<WarAgentPercept> percepts = getPercepts();
 
 		for (WarAgentPercept p : percepts) {

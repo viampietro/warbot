@@ -1,6 +1,5 @@
 package myteam;
 
-import edu.warbot.agents.percepts.WarAgentPercept;
 import edu.warbot.brains.brains.WarRocketLauncherBrain;
 import edu.warbot.communications.WarMessage;
 
@@ -13,14 +12,10 @@ public abstract class WarRocketLauncherBrainController extends WarRocketLauncher
 
 	@Override
 	public String action() {
-		String messages = "";
+		
 		List<WarMessage> msgs = getMessages();
 		
-		List<WarAgentPercept> percepts = getPercepts();
-		
-		
 		setDebugString("No target");
-		
 		
 		for (WarMessage msg : msgs) {
 			if (msg.getMessage().equals("Attack the enemy base")) {
