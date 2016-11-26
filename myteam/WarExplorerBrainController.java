@@ -34,7 +34,7 @@ public abstract class WarExplorerBrainController extends WarExplorerBrain {
 		}
 
 		for(WarMessage msg : getMessages()) {
-			if(msg.getMessage().equals("bring food to base")) {
+			if(msg.getMessage().equals("Bring food to base")) {
 				if(!isBagEmpty()) {
 					setHeading(msg.getAngle());
 					return ACTION_MOVE;
@@ -52,6 +52,8 @@ public abstract class WarExplorerBrainController extends WarExplorerBrain {
 					String coord [] = {explorerToEnemyBase.x + "", explorerToEnemyBase.y + ""};
 					broadcastMessageToAgentType(WarAgentType.WarRocketLauncher, "Attack the enemy base", coord);
 					broadcastMessageToAgentType(WarAgentType.WarBase, "Enemy base spotted", coord);
+					return ACTION_IDLE;
+					
 				} else if (p.getDistance() < WarFood.MAX_DISTANCE_TAKE && !isBagEmpty()) {
 					setHeading(p.getAngle());
 					this.setIdNextAgentToGive(idBase);
