@@ -1,8 +1,8 @@
-Name: equipe_viampietro
+Name: Victorem
 IconPath: MyTeam.png
 SoundPath: MyTeam.wav
 Description: |
-    Mon equipe viampietro
+    L'équipe d'Alexandre Culty et Vincent Iampietro.
 BrainsPackage: myteam
 AgentsBrainClasses:
     WarBase: WarBaseBrainController

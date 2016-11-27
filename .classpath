@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<classpath>
+	<classpathentry kind="src" path=""/>
+	<classpathentry kind="con" path="org.eclipse.jdt.launching.JRE_CONTAINER"/>
+	<classpathentry kind="lib" path="/home/alex/poa/Warbot-3.3.2/Warbot-3.3.2/warbot-3.3.2.jar"/>
+	<classpathentry kind="output" path=""/>
+</classpath>

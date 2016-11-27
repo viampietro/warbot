@@ -1,92 +1,24 @@
 package myteam;
 
+import edu.warbot.agents.agents.WarEngineer;
+import edu.warbot.agents.agents.WarExplorer;
+import edu.warbot.agents.agents.WarHeavy;
+import edu.warbot.agents.agents.WarLight;
+import edu.warbot.agents.agents.WarRocketLauncher;
 import edu.warbot.agents.enums.WarAgentType;
+import edu.warbot.agents.percepts.WarAgentPercept;
 import edu.warbot.brains.WarBrain;
 import edu.warbot.brains.brains.WarBaseBrain;
 import edu.warbot.communications.WarMessage;
 
-import java.util.List;
 import java.util.Stack;
 
 public abstract class WarBaseBrainController extends WarBaseBrain {
 
-	// Cout de creation des unites
-	private final static int LIGHT_COST = 250;
-	private final static int HEAVY_COST = 500;
-	private final static int EXPLORER_COST = 200;
-	private final static int RLAUNCHER_COST = 1000;
-	private final static int ENGINEER_COST = 1000;
-
-	private Stack<WTask> aStack; // Pour activities stack
-	private WTask ctask;
-
-	/***********************************
-	 ************** IDLE ***************
-	 ***********************************/
-	static WTask stayIdleTask = new WTask() {
-		@Override
-		String exec(WarBrain bc) {
-			WarBaseBrainController me = (WarBaseBrainController) bc;
-
-			if (me.isEnemyBaseSpotted())
-				me.ctask = createSoldierTask;
-			if (me.isHealthCritic())
-				me.ctask = healMySelfTask;
-
-			return me.idle();
-		}
-	};
-
-	/*********************************************
-	 ************** HEAL MYSELF ******************
-	 *********************************************/
-	static WTask healMySelfTask = new WTask() {
-
-		@Override
-		String exec(WarBrain bc) {
-			WarBaseBrainController me = (WarBaseBrainController) bc;
-
-			if (me.isHealthGood()) {
-				me.ctask = me.aStack.pop();
-			} else if (me.getNbElementsInBag() == 0)
-				return me.idle();
-
-			return me.eat();
-		}
-	};
-
-	/*********************************************
-	 ************** CREATE SOLDIER ***************
-	 *********************************************/
-	static WTask createSoldierTask = new WTask() {
-
-		String exec(WarBrain bc) {
-			WarBaseBrainController me = (WarBaseBrainController) bc;
-
-			if (me.isAttackTerminated()) {
-				me.ctask = me.aStack.pop();
-				return me.idle();
-			} else if (me.isHealthCritic()) {
-				me.aStack.push(me.ctask);
-				me.ctask = healMySelfTask;
-				return me.idle();
-			} else {
-
-				if (me.getHealth() > RLAUNCHER_COST)
-					me.setNextAgentToCreate(WarAgentType.WarRocketLauncher);
-				else if (me.getHealth() > HEAVY_COST)
-					me.setNextAgentToCreate(WarAgentType.WarHeavy);
-				else if (me.getHealth() > LIGHT_COST)
-					me.setNextAgentToCreate(WarAgentType.WarLight);
-				else if (!me.isBagEmpty())
-					return me.eat();
-				else
-					return me.idle();
-			}
-
-			return me.create();
-		}
-	};
+	
+	private Stack<WTask> aStack; // Pile des activités à effectuer
+	private WTask ctask; // Une activité
+	
 
 	public WarBaseBrainController() {
 		super();
@@ -95,27 +27,147 @@ public abstract class WarBaseBrainController extends WarBaseBrain {
 		aStack.push(ctask);
 	}
 
-	@Override
 	public String action() {
-
+		
 		// Traitement des messages
 		handlingMessages();
 
-		// Execution des reflexes
+		// Exécution des reflexes s'il y en a
 		String reflex = doReflexes();
 		if (reflex != null)
 			return reflex;
 
+		// Sinon exécution de l'activité courrante
 		return ctask.exec(this);
 	}
+	
+	
+	/*******************************************************
+	 ******************** MESSAGE HANDLING *****************
+	 *******************************************************/
+	public void handlingMessages() {
+		
+		// Traitement des messages reçus
+		for (WarMessage msg : getMessages()) {
+			if (msg.getMessage().equals("baseInfoAnswer")) {
+				reply(msg, "baseInfoResponse", Integer.toString(getID()));
+			}
+			else if(msg.getMessage().equals("enemyBaseSpotted")){
+				aStack.push(ctask);
+				ctask = createSoldierTask;
+			}
+		}
+		
+		// Message à envoyer selon la perception
+		for (WarAgentPercept p : getPercepts()) {
+			if (isEnemy(p)){
+				broadcastMessageToAll("IamSpotted", "");
+			}
+		}
+		
+		// Message à envoyer selon l'état
+		if (isBagEmpty())
+			broadcastMessageToAgentType(WarAgentType.WarExplorer, "baseNeedFood", Integer.toString(getID()));
+		
+	}
+	
 
 	/*******************************************************
-	 ************ ACTIVITY CHANGING CONDITIONS **************
+	 ******************** REFLEXES *************************
+	 *******************************************************/
+	public String doReflexes() {
+
+		if (getHealth() < getMaxHealth() && !isBagEmpty())
+			return ACTION_EAT;
+		
+		return null;
+	}
+
+	
+	/*******************************************************
+	 ********************* ACTIVITES ***********************
+	 *******************************************************/
+	
+	static WTask stayIdleTask = new WTask() {
+		
+		@Override
+		String exec(WarBrain bc) {
+			WarBaseBrainController me = (WarBaseBrainController) bc;
+			
+			me.setDebugString("Idle");
+
+			if (me.isEnemyBaseSpotted()){
+				me.ctask = createSoldierTask;
+			}
+			else if (me.isHealthCritic()){
+				me.ctask = healMySelfTask;
+			}
+
+			return me.idle();
+		}
+	};
+
+	static WTask healMySelfTask = new WTask() {
+
+		@Override
+		String exec(WarBrain bc) {
+			WarBaseBrainController me = (WarBaseBrainController) bc;
+			
+			me.setDebugString("Heal me");
+
+			if (me.isHealthGood()) {
+				me.ctask = me.aStack.pop();
+				return me.idle();
+			} else if (me.isBagEmpty())
+				return me.idle();
+
+			return me.eat();
+		}
+	};
+
+	static WTask createSoldierTask = new WTask() {
+
+		@Override
+		String exec(WarBrain bc) {
+			WarBaseBrainController me = (WarBaseBrainController) bc;
+			
+			me.setDebugString("Creation de soldats");
+			
+			if (me.isAttackTerminated()) {
+				me.ctask = me.aStack.pop();
+				return me.idle();
+			} else if (me.isHealthCritic()) {
+				me.aStack.push(me.ctask);
+				me.ctask = healMySelfTask;
+			} else if(me.getMaxHealth() * 0.45 < me.getHealth() - WarRocketLauncher.COST){
+				me.setNextAgentToCreate(WarAgentType.WarRocketLauncher);
+			} else if(me.getMaxHealth() * 0.45 < me.getHealth() - WarHeavy.COST){
+				me.setNextAgentToCreate(WarAgentType.WarHeavy);
+			} else if(me.getMaxHealth() * 0.45 < me.getHealth() - WarLight.COST){
+				me.setNextAgentToCreate(WarAgentType.WarLight);
+			} else if(me.getMaxHealth() * 0.45 < me.getHealth() - WarEngineer.COST){
+				me.setNextAgentToCreate(WarAgentType.WarEngineer);
+			} else if(me.getMaxHealth() * 0.45 < me.getHealth() - WarExplorer.COST){
+				me.setNextAgentToCreate(WarAgentType.WarExplorer);
+			} else if(!me.isBagEmpty()){
+				return me.eat();
+			} else {
+				return me.idle();
+			}
+
+			return me.create();
+		}
+	};
+
+	
+	/*******************************************************
+	 *********** CONDITIONS CHANGEMENT ACTIVITE ************
 	 *******************************************************/
 
 	public boolean isEnemyBaseSpotted() {
 		for (WarMessage msg : getMessages()) {
-			if (msg.getMessage().equals("Enemy base spotted")) {
+			
+			if (msg.getMessage().equals("enemyBaseSpotted")) {
 				setDebugString("Explorers spotted the enemy base");
 				return true;
 			}
@@ -137,32 +189,8 @@ public abstract class WarBaseBrainController extends WarBaseBrain {
 	}
 
 	public boolean isHealthGood() {
-		return getHealth() >= 0.8 * getMaxHealth();
+		return getHealth() > 0.8 * getMaxHealth();
 	}
 
-	/*******************************************************
-	 ******************** MESSAGE HANDLING *****************
-	 *******************************************************/
-	public void handlingMessages() {
-		for (WarMessage msg : getMessages()) {
-			if (msg.getMessage().equals("Give me your ID base")) {
-				setDebugString("I'm here");
-				reply(msg, "I am the base and here is my ID", Integer.toString(getID()));
-			}
-		}
-
-		if (getNbElementsInBag() == 0)
-			broadcastMessageToAgentType(WarAgentType.WarExplorer, "Bring food to base", "");
-	}
-
-	/*******************************************************
-	 ******************** REFLEXES *************************
-	 *******************************************************/
-	public String doReflexes() {
-
-		if (getHealth() < getMaxHealth() && !isBagEmpty())
-			return ACTION_EAT;
-		
-		return null;
-	}
+	
 }

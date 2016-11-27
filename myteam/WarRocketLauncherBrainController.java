@@ -3,17 +3,19 @@ package myteam;
 import edu.warbot.agents.enums.WarAgentType;
 import edu.warbot.agents.percepts.WarAgentPercept;
 import edu.warbot.agents.projectiles.WarRocket;
+import edu.warbot.agents.resources.WarFood;
 import edu.warbot.brains.WarBrain;
 import edu.warbot.brains.brains.WarRocketLauncherBrain;
 import edu.warbot.communications.WarMessage;
+import jogamp.common.os.elf.SectionHeader;
 
 import java.util.List;
 import java.util.Stack;
 
 public abstract class WarRocketLauncherBrainController extends WarRocketLauncherBrain {
 
-	WTask ctask;
-	Stack<WTask> aStack;
+	private Stack<WTask> aStack; // Pile des activités à effectuer
+	private WTask ctask; // Une activité
 
 	boolean baseAttacked = false;
 	boolean enemyBaseSpotted = false;
@@ -24,16 +26,94 @@ public abstract class WarRocketLauncherBrainController extends WarRocketLauncher
 	double angleToEBase = 0;
 	double distanceToBase = 0;
 	double angleToBase = 0;
+	
+	
+	public WarRocketLauncherBrainController() {
+		super();
+		ctask = wiggleTask;
+		aStack = new Stack<WTask>();
+	}
 
-	/**************************************
-	 ************* WIGGLE *****************
-	 **************************************/
+	@Override
+	public String action() {
+
+		// Traitement des messages
+		handlingMessages();
+
+		// Exécution des reflexes s'il y en a
+		String reflex = doReflexes();
+		if (reflex != null)
+			return reflex;
+
+		// Sinon exécution de l'activité courrante
+		return ctask.exec(this);
+	}
+
+	
+	/*******************************************************
+	 ******************** MESSAGE HANDLING *****************
+	 *******************************************************/
+	public void handlingMessages() {
+
+		for (WarMessage msg : getMessages()) {
+
+			// Si la base ennemie est reperee
+			if (msg.getMessage().equals("enemyBaseSpotted")) {
+				Vector2 exToEBase = new Vector2(Float.valueOf(msg.getContent()[0]), Float.valueOf(msg.getContent()[1]));
+				Vector2 rLauncherToEx = VUtils.cartFromPolaire(msg.getAngle(), msg.getDistance());
+				Vector2 rLauncherToEBase = rLauncherToEx.add(exToEBase);
+
+				enemyBaseSpotted = true;
+				endOfAttack = false;
+				angleToEBase = VUtils.polaireFromCart(rLauncherToEBase).x;
+				distanceToEBase = VUtils.polaireFromCart(rLauncherToEBase).y;
+
+				aStack.push(ctask);
+				ctask = attackTask;
+			} else if (msg.getMessage().equals("Base is being attacked")) {
+				baseAttacked = true;
+				angleToBase = msg.getAngle();
+				distanceToBase = msg.getDistance();
+			}
+
+		}
+	}
+	
+	
+	/*******************************************************
+	 ******************** REFLEXES *************************
+	 *******************************************************/
+	public String doReflexes() {
+		
+		for (WarAgentPercept percept : getPercepts()) {
+			if(percept.getType() != WarAgentType.WarFood && percept.getDistance() <= WarFood.MAX_DISTANCE_TAKE){
+				return ACTION_TAKE;
+			}
+			else if (isEnemy(percept) && percept.getType() != WarAgentType.WarFood) {
+				setHeading(percept.getAngle());
+				if (isReloaded()) {
+					setTargetDistance(percept.getDistance());
+					return ACTION_FIRE;
+				} else return ACTION_RELOAD;
+			}
+		}
+
+		return null;
+	}
+	
+	
+	/*******************************************************
+	 ********************* ACTIVITES ***********************
+	 *******************************************************/
+	
 	static WTask wiggleTask = new WTask() {
 
 		@Override
 		String exec(WarBrain bc) {
 
 			WarRocketLauncherBrainController me = (WarRocketLauncherBrainController) bc;
+			
+			me.setDebugString("Wiggle");
 
 			if (me.enemyBaseSpotted) {
 				me.aStack.push(me.ctask);
@@ -43,7 +123,7 @@ public abstract class WarRocketLauncherBrainController extends WarRocketLauncher
 				me.ctask = defendTask;
 			}
 
-			return ACTION_MOVE;
+			return me.move();
 		}
 	};
 
@@ -55,24 +135,27 @@ public abstract class WarRocketLauncherBrainController extends WarRocketLauncher
 		@Override
 		String exec(WarBrain bc) {
 			WarRocketLauncherBrainController me = (WarRocketLauncherBrainController) bc;
+			
+			me.setDebugString("Attack");
 
 			if(me.endOfAttack) {
 				me.ctask = me.aStack.pop();
-				return ACTION_IDLE;
+				return me.idle();
 			}
 			
 			// Si la base enemie est a portee
-			if (me.distanceToEBase <= WarRocket.RANGE) {
+			if (me.distanceToEBase < WarRocket.RANGE) {
+				me.setHeading(me.angleToEBase);
 				if (me.isReloaded())
 					me.setTargetDistance(me.distanceToEBase);
 				else
-					return ACTION_RELOAD;
+					return me.beginReloadWeapon();
 			} else {
 				me.setHeading(me.angleToEBase);
-				return ACTION_MOVE;
+				return me.move();
 			}
 
-			return ACTION_FIRE;
+			return me.fire();
 		}
 	};
 
@@ -84,21 +167,24 @@ public abstract class WarRocketLauncherBrainController extends WarRocketLauncher
 		@Override
 		String exec(WarBrain bc) {
 			WarRocketLauncherBrainController me = (WarRocketLauncherBrainController) bc;
+			
+			me.setDebugString("Defend");
 
 			if(!me.baseAttacked) {
 				me.ctask = me.aStack.pop();
-				return ACTION_IDLE;
+				return me.idle();
 			}
 			
 			for (WarAgentPercept percept : me.getPercepts()) {
 				if (me.isEnemySoldier(percept) || percept.getAngle() == me.angleToBase) {
 					if (me.isReloaded()) {
+						me.setHeading(percept.getAngle());
 						me.setTargetDistance(percept.getDistance());
 						return ACTION_FIRE;
 					} else
 						return ACTION_RELOAD;
 				} else if (percept.getType() == WarAgentType.WarBase && !me.isEnemy(percept)) {
-					return ACTION_IDLE;
+					return me.idle();
 				}
 			}
 
@@ -108,32 +194,10 @@ public abstract class WarRocketLauncherBrainController extends WarRocketLauncher
 		}
 	};
 
-	public WarRocketLauncherBrainController() {
-		super();
-		ctask = wiggleTask;
-		aStack = new Stack<WTask>();
-	}
-
-	@Override
-	public String action() {
-
-		setDebugString("No target");
-
-		// Traitement des messages
-		handlingMessages();
-
-		// Execution des reflexes
-		String reflex = doReflexes();
-		if (reflex != null)
-			return reflex;
-
-		if (isBlocked()) {
-			setRandomHeading();
-			return move();
-		}
-
-		return ctask.exec(this);
-	}
+	
+	/*******************************************************
+	 *********** CONDITIONS CHANGEMENT ACTIVITE ************
+	 *******************************************************/
 
 	/*
 	 * @param Un percept de l'agent
@@ -144,50 +208,6 @@ public abstract class WarRocketLauncherBrainController extends WarRocketLauncher
 		return isEnemy(percept) && (percept.getType() == WarAgentType.WarRocketLauncher
 				|| percept.getType() == WarAgentType.WarHeavy || percept.getType() == WarAgentType.WarLight);
 	}
-
-	/**************************************
-	 *********** REFLEXES **********
-	 **************************************/
-	public String doReflexes() {
-		for (WarAgentPercept percept : getPercepts()) {
-
-			if (isEnemy(percept)) {
-				if (isReloaded()) {
-					setTargetDistance(percept.getDistance());
-					return ACTION_FIRE;
-				} else return ACTION_RELOAD;
-			}
-		}
-
-		return null;
-	}
-
-	/**************************************
-	 *********** MESSAGE HANDLING *********
-	 **************************************/
-	public void handlingMessages() {
-
-		for (WarMessage msg : getMessages()) {
-
-			// Si la base ennemie est reperee
-			if (msg.getMessage().equals("Attack the enemy base")) {
-				Vector2 exToEBase = new Vector2(Float.valueOf(msg.getContent()[0]), Float.valueOf(msg.getContent()[1]));
-				Vector2 rLauncherToEx = VUtils.cartFromPolaire(msg.getAngle(), msg.getDistance());
-				Vector2 rLauncherToEBase = rLauncherToEx.add(exToEBase);
-
-				enemyBaseSpotted = true;
-				endOfAttack = false;
-				angleToEBase = VUtils.polaireFromCart(rLauncherToEBase).x;
-				distanceToEBase = VUtils.polaireFromCart(rLauncherToEBase).y;
-
-				setDebugString("On my way to enemy base");
-			} else if (msg.getMessage().equals("Base is being attacked")) {
-				baseAttacked = true;
-				angleToBase = msg.getAngle();
-				distanceToBase = msg.getDistance();
-			}
-
-		}
-	}
+	
 
 }
