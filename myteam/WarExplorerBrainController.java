@@ -23,12 +23,15 @@ public abstract class WarExplorerBrainController extends WarExplorerBrain {
 	private double distanceToHeading;
 	private boolean baseNeedFood;
 	
-
+	private boolean someoneIsInCharge = false;
+	private int attackLeaderID = -1;
+	
 	public WarExplorerBrainController() {
 		super();
 		ctask = searchFood;
 		aStack = new Stack<WTask>();
 		aStack.push(ctask);
+		
 	}
 
 	public String action() {
@@ -65,6 +68,9 @@ public abstract class WarExplorerBrainController extends WarExplorerBrain {
 				angleBase = msg.getAngle();
 				distanceBase = msg.getDistance();
 				baseNeedFood = true;
+			} else if(msg.getMessage().equals("ImLeadingTheAttack")) {
+				attackLeaderID = Integer.valueOf(msg.getContent()[0]);
+				someoneIsInCharge = true;
 			}
 		}
 		
@@ -83,8 +89,13 @@ public abstract class WarExplorerBrainController extends WarExplorerBrain {
 			else if(p.getType() == WarAgentType.WarBase && isEnemy(p)){
 				Vector2 explorerToBaseEnemy = VUtils.cartFromPolaire(p.getAngle(), p.getDistance());
 				String coord [] = {explorerToBaseEnemy.x + "", explorerToBaseEnemy.y + ""};
-				broadcastMessageToGroup("Soldiers", "enemyBaseSpotted", coord);
-				broadcastMessageToAgentType(WarAgentType.WarBase, "enemyBaseSpotted", coord);
+				
+				if(!someoneIsInCharge) {
+					requestRole("Soldiers", "chief");
+					broadcastMessageToGroup("Soldiers", "enemyBaseSpotted", coord);
+					broadcastMessageToAgentType(WarAgentType.WarBase, "enemyBaseSpotted", coord);
+					broadcastMessageToAgentType(WarAgentType.WarExplorer, "ImLeadingTheAttack", getID() + "");
+				} 
 			}
 		}
 		
@@ -231,7 +242,7 @@ public abstract class WarExplorerBrainController extends WarExplorerBrain {
 	
 	public boolean baseEnnemySpotted(){
 		for (WarAgentPercept p : getPercepts()) {
-			if(p.getType() == WarAgentType.WarBase && isEnemy(p)){			
+			if(p.getType() == WarAgentType.WarBase && isEnemy(p) && !someoneIsInCharge){			
 				return true;
 			}
 		}

@@ -139,6 +139,9 @@ public abstract class WarBaseBrainController extends WarBaseBrain {
 				me.ctask = healMySelfTask;
 				return me.idle();
 			} else {
+				System.out.println("RocketLauncher : " + me.getNumberOfAgentsInRole("Soldiers", "RocketLauncher")
+							+ " Light : " + me.getNumberOfAgentsInRole("Soldiers", "Light")
+							+ " Heavy : " + me.getNumberOfAgentsInRole("Soldiers", "Heavy"));
 				int nbEachSoldierRoles[] = { me.getNumberOfAgentsInRole("Soldiers", "RocketLauncher"),
 						me.getNumberOfAgentsInRole("Soldiers", "Light"),
 						me.getNumberOfAgentsInRole("Soldiers", "Heavy") };

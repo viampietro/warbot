@@ -29,12 +29,14 @@ public abstract class WarHeavyBrainController extends WarHeavyBrain {
 		super();
 		ctask = wiggleTask;
 		aStack = new Stack<WTask>();
-		requestRole("Soldiers", "Heavy");
+		
 	}
 
 	@Override
 	public String action() {
-
+		
+		requestRole("Soldiers", "Heavy");
+		
 		// Traitement des messages
 		handlingMessages();
 
@@ -80,7 +82,12 @@ public abstract class WarHeavyBrainController extends WarHeavyBrain {
 	 ******************** REFLEXES *************************
 	 *******************************************************/
 	public String doReflexes() {
-
+		
+		if(isBlocked()) {
+			setRandomHeading();
+			return ACTION_MOVE;
+		}
+		
 		for (WarAgentPercept percept : getPercepts()) {
 			if (percept.getType() != WarAgentType.WarFood && percept.getDistance() <= WarFood.MAX_DISTANCE_TAKE) {
 				return ACTION_TAKE;

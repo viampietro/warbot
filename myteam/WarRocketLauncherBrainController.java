@@ -32,12 +32,14 @@ public abstract class WarRocketLauncherBrainController extends WarRocketLauncher
 		super();
 		ctask = wiggleTask;
 		aStack = new Stack<WTask>();
-		requestRole("Soldiers", "RocketLauncher");
+		
 	}
 
 	@Override
 	public String action() {
 
+		requestRole("Soldiers", "RocketLauncher");
+		
 		// Traitement des messages
 		handlingMessages();
 
@@ -85,6 +87,11 @@ public abstract class WarRocketLauncherBrainController extends WarRocketLauncher
 	 ******************** REFLEXES *************************
 	 *******************************************************/
 	public String doReflexes() {
+		
+		if(isBlocked()) {
+			setRandomHeading();
+			return ACTION_MOVE;
+		}
 		
 		for (WarAgentPercept percept : getPercepts()) {
 			if(percept.getType() != WarAgentType.WarFood && percept.getDistance() <= WarFood.MAX_DISTANCE_TAKE){

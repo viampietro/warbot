@@ -27,7 +27,9 @@ public abstract class WarLightBrainController extends WarLightBrain {
 
     @Override
     public String action() {
-
+    	
+    	requestRole("Soldiers", "Light");
+    	
         if (_baseId == 0) {
             broadcastMessageToAll("Your ID please", "");
         }
