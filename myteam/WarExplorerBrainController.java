@@ -83,7 +83,7 @@ public abstract class WarExplorerBrainController extends WarExplorerBrain {
 			else if(p.getType() == WarAgentType.WarBase && isEnemy(p)){
 				Vector2 explorerToBaseEnemy = VUtils.cartFromPolaire(p.getAngle(), p.getDistance());
 				String coord [] = {explorerToBaseEnemy.x + "", explorerToBaseEnemy.y + ""};
-				broadcastMessageToAgentType(WarAgentType.WarRocketLauncher, "enemyBaseSpotted", coord);
+				broadcastMessageToGroup("Soldiers", "enemyBaseSpotted", coord);
 				broadcastMessageToAgentType(WarAgentType.WarBase, "enemyBaseSpotted", coord);
 			}
 		}

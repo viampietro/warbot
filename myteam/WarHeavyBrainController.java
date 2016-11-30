@@ -1,128 +1,203 @@
 package myteam;
 
-import edu.warbot.agents.agents.WarHeavy;
+import edu.warbot.agents.enums.WarAgentType;
 import edu.warbot.agents.percepts.WarAgentPercept;
+import edu.warbot.agents.projectiles.WarRocket;
 import edu.warbot.agents.resources.WarFood;
+import edu.warbot.brains.WarBrain;
 import edu.warbot.brains.brains.WarHeavyBrain;
 import edu.warbot.communications.WarMessage;
 
-import java.util.List;
+import java.util.Stack;
 
 public abstract class WarHeavyBrainController extends WarHeavyBrain {
 
-    private boolean _baseFound;
-    private boolean _inDanger;
-    private int _baseId;
-    private Double _basePosition;
+	private Stack<WTask> aStack; // Pile des activités à effectuer
+	private WTask ctask; // Une activité
 
-    public WarHeavyBrainController() {
-        super();
+	boolean baseAttacked = false;
+	boolean enemyBaseSpotted = false;
+	boolean baseIsSafe = true;
+	boolean endOfAttack = true;
 
-        _baseFound = false;
-        _inDanger = false;
-        _baseId = 0;
-        _basePosition = 0.0;
-    }
+	double distanceToEBase = 0;
+	double angleToEBase = 0;
+	double distanceToBase = 0;
+	double angleToBase = 0;
 
-    @Override
-    public String action() {
+	public WarHeavyBrainController() {
+		super();
+		ctask = wiggleTask;
+		aStack = new Stack<WTask>();
+		requestRole("Soldiers", "Heavy");
+	}
 
-    	if (_baseId == 0) {
-            broadcastMessageToAll("Your ID please", "");
-        }
+	@Override
+	public String action() {
 
-        if (getHealth() <= (WarHeavy.MAX_HEALTH / 5))
-            return eat();
+		// Traitement des messages
+		handlingMessages();
 
-        List<WarAgentPercept> percepts = getPercepts();
-        for (WarAgentPercept p : percepts) {
-            switch (p.getType()) {
-                case WarFood:
-                    if (p.getDistance() < WarFood.MAX_DISTANCE_TAKE && !isBagFull()) {
-                        setHeading(p.getAngle());
-                        return take();
-                    } else if (!isBagFull()) {
-                        setHeading(p.getAngle());
-                    }
-                    break;
-                case WarBase:
-                    if (isEnemy(p)) {
-                        _baseFound = true;
-                        setHeading(p.getAngle());
-                        if (isReloaded()) {
-                            return fire();
-                        } else
-                            return beginReloadWeapon();
-                    }
-                    break;
-                case WarHeavy:
-                	if (isEnemy(p)) {
-                        _baseFound = true;
-                        setHeading(p.getAngle());
-                        if (isReloaded()) {
-                            return fire();
-                        } else
-                            return beginReloadWeapon();
-                    }
-                    break;
-                case WarLight:
-                	if (isEnemy(p)) {
-                        _baseFound = true;
-                        setHeading(p.getAngle());
-                        if (isReloaded()) {
-                            return fire();
-                        } else
-                            return beginReloadWeapon();
-                    }
-                    break;
-                case WarRocketLauncher:
-                	if (isEnemy(p)) {
-                        _baseFound = true;
-                        setHeading(p.getAngle());
-                        if (isReloaded()) {
-                            return fire();
-                        } else
-                            return beginReloadWeapon();
-                    }
-                    break;
-                default:
-                    if (isEnemy(p)) {
-                        setHeading(p.getAngle());
-                        if (isReloaded()) {
-                            return fire();
-                        } else
-                            return beginReloadWeapon();
-                    }
-                    break;
-            }
-        }
+		// Exécution des reflexes s'il y en a
+		String reflex = doReflexes();
+		if (reflex != null)
+			return reflex;
 
-        List<WarMessage> msgs = getMessages();
-        for (WarMessage msg : msgs) {
-            if (msg.getMessage().equals("Enemy base on sight") && !_inDanger) {
-                setHeading(msg.getAngle());
-            }
-            if (msg.getMessage().equals("We are under attack")) {
-                _inDanger = true;
-                _basePosition = msg.getAngle();
-            }
-            if (msg.getMessage().equals("Here is my ID")) {
-                String[] content = msg.getContent();
-                _baseId = Integer.parseInt(content[0]);
-            }
-            if (msg.getMessage().equals("I am the danger")) {
-                _inDanger = false;
-                setRandomHeading();
-            }
-        }
+		// Sinon exécution de l'activité courrante
+		return ctask.exec(this);
+	}
 
-        if (_inDanger && !_baseFound) {
-            setHeading(_basePosition);
-        }
+	/*******************************************************
+	 ******************** MESSAGE HANDLING *****************
+	 *******************************************************/
+	public void handlingMessages() {
 
-        if (isBlocked())
-            setRandomHeading();
-        return move();
-    }
+		for (WarMessage msg : getMessages()) {
+
+			// Si la base ennemie est reperee
+			if (msg.getMessage().equals("enemyBaseSpotted")) {
+				Vector2 exToEBase = new Vector2(Float.valueOf(msg.getContent()[0]), Float.valueOf(msg.getContent()[1]));
+				Vector2 rLauncherToEx = VUtils.cartFromPolaire(msg.getAngle(), msg.getDistance());
+				Vector2 rLauncherToEBase = rLauncherToEx.add(exToEBase);
+
+				enemyBaseSpotted = true;
+				endOfAttack = false;
+				angleToEBase = VUtils.polaireFromCart(rLauncherToEBase).x;
+				distanceToEBase = VUtils.polaireFromCart(rLauncherToEBase).y;
+
+				aStack.push(ctask);
+				ctask = attackTask;
+			} else if (msg.getMessage().equals("Base is being attacked")) {
+				baseAttacked = true;
+				angleToBase = msg.getAngle();
+				distanceToBase = msg.getDistance();
+			}
+
+		}
+	}
+
+	/*******************************************************
+	 ******************** REFLEXES *************************
+	 *******************************************************/
+	public String doReflexes() {
+
+		for (WarAgentPercept percept : getPercepts()) {
+			if (percept.getType() != WarAgentType.WarFood && percept.getDistance() <= WarFood.MAX_DISTANCE_TAKE) {
+				return ACTION_TAKE;
+			} else if (isEnemy(percept) && percept.getType() != WarAgentType.WarFood) {
+				setHeading(percept.getAngle());
+				if (isReloaded()) {
+					return ACTION_FIRE;
+				} else
+					return ACTION_RELOAD;
+			}
+		}
+
+		return null;
+	}
+
+	/*******************************************************
+	 ********************* ACTIVITES ***********************
+	 *******************************************************/
+
+	static WTask wiggleTask = new WTask() {
+
+		@Override
+		String exec(WarBrain bc) {
+
+			WarHeavyBrainController me = (WarHeavyBrainController) bc;
+
+			me.setDebugString("Wiggle");
+
+			if (me.enemyBaseSpotted) {
+				me.aStack.push(me.ctask);
+				me.ctask = attackTask;
+			} else if (me.baseAttacked) {
+				me.aStack.push(me.ctask);
+				me.ctask = defendTask;
+			}
+
+			return me.move();
+		}
+	};
+
+	/**************************************
+	 ******* ATTACK THE ENEMY BASE ********
+	 **************************************/
+	static WTask attackTask = new WTask() {
+
+		@Override
+		String exec(WarBrain bc) {
+			WarHeavyBrainController me = (WarHeavyBrainController) bc;
+
+			me.setDebugString("Attack");
+
+			if (me.endOfAttack) {
+				me.ctask = me.aStack.pop();
+				return me.idle();
+			}
+
+			// Si la base enemie est a portee
+			if (me.distanceToEBase < WarRocket.RANGE) {
+				me.setHeading(me.angleToEBase);
+				if (me.isReloaded())
+					return me.beginReloadWeapon();
+			} else {
+				me.setHeading(me.angleToEBase);
+				return me.move();
+			}
+
+			return me.fire();
+		}
+	};
+
+	/**************************************
+	 *********** DEFEND THE BASE **********
+	 **************************************/
+	static WTask defendTask = new WTask() {
+
+		@Override
+		String exec(WarBrain bc) {
+			WarHeavyBrainController me = (WarHeavyBrainController) bc;
+
+			me.setDebugString("Defend");
+
+			if (!me.baseAttacked) {
+				me.ctask = me.aStack.pop();
+				return me.idle();
+			}
+
+			for (WarAgentPercept percept : me.getPercepts()) {
+				if (me.isEnemySoldier(percept) || percept.getAngle() == me.angleToBase) {
+					if (me.isReloaded()) {
+						me.setHeading(percept.getAngle());
+						// me.setTargetDistance(percept.getDistance());
+						return ACTION_FIRE;
+					} else
+						return ACTION_RELOAD;
+				} else if (percept.getType() == WarAgentType.WarBase && !me.isEnemy(percept)) {
+					return me.idle();
+				}
+			}
+
+			me.setHeading(me.angleToBase);
+
+			return ACTION_MOVE;
+		}
+	};
+
+	/*******************************************************
+	 *********** CONDITIONS CHANGEMENT ACTIVITE ************
+	 *******************************************************/
+
+	/*
+	 * @param Un percept de l'agent
+	 * 
+	 * @return Vrai si l'agent est un type combattant et appartient a l'ennemi
+	 */
+	public boolean isEnemySoldier(WarAgentPercept percept) {
+		return isEnemy(percept) && (percept.getType() == WarAgentType.WarRocketLauncher
+				|| percept.getType() == WarAgentType.WarHeavy || percept.getType() == WarAgentType.WarLight);
+	}
 
 }

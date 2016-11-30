@@ -11,14 +11,17 @@ import edu.warbot.brains.WarBrain;
 import edu.warbot.brains.brains.WarBaseBrain;
 import edu.warbot.communications.WarMessage;
 
+import java.lang.reflect.Array;
 import java.util.Stack;
+
+import com.android.org.bouncycastle.util.Integers;
+import com.google.common.primitives.Ints;
+import com.sun.org.apache.xalan.internal.xsltc.util.IntegerArray;
 
 public abstract class WarBaseBrainController extends WarBaseBrain {
 
-	
 	private Stack<WTask> aStack; // Pile des activités à effectuer
 	private WTask ctask; // Une activité
-	
 
 	public WarBaseBrainController() {
 		super();
@@ -28,7 +31,7 @@ public abstract class WarBaseBrainController extends WarBaseBrain {
 	}
 
 	public String action() {
-		
+
 		// Traitement des messages
 		handlingMessages();
 
@@ -40,37 +43,34 @@ public abstract class WarBaseBrainController extends WarBaseBrain {
 		// Sinon exécution de l'activité courrante
 		return ctask.exec(this);
 	}
-	
-	
+
 	/*******************************************************
 	 ******************** MESSAGE HANDLING *****************
 	 *******************************************************/
 	public void handlingMessages() {
-		
+
 		// Traitement des messages reçus
 		for (WarMessage msg : getMessages()) {
 			if (msg.getMessage().equals("baseInfoAnswer")) {
 				reply(msg, "baseInfoResponse", Integer.toString(getID()));
-			}
-			else if(msg.getMessage().equals("enemyBaseSpotted")){
+			} else if (msg.getMessage().equals("enemyBaseSpotted")) {
 				aStack.push(ctask);
 				ctask = createSoldierTask;
 			}
 		}
-		
+
 		// Message à envoyer selon la perception
 		for (WarAgentPercept p : getPercepts()) {
-			if (isEnemy(p)){
+			if (isEnemy(p)) {
 				broadcastMessageToAll("IamSpotted", "");
 			}
 		}
-		
+
 		// Message à envoyer selon l'état
 		if (isBagEmpty())
 			broadcastMessageToAgentType(WarAgentType.WarExplorer, "baseNeedFood", Integer.toString(getID()));
-		
+
 	}
-	
 
 	/*******************************************************
 	 ******************** REFLEXES *************************
@@ -79,27 +79,25 @@ public abstract class WarBaseBrainController extends WarBaseBrain {
 
 		if (getHealth() < getMaxHealth() && !isBagEmpty())
 			return ACTION_EAT;
-		
+
 		return null;
 	}
 
-	
 	/*******************************************************
 	 ********************* ACTIVITES ***********************
 	 *******************************************************/
-	
+
 	static WTask stayIdleTask = new WTask() {
-		
+
 		@Override
 		String exec(WarBrain bc) {
 			WarBaseBrainController me = (WarBaseBrainController) bc;
-			
+
 			me.setDebugString("Idle");
 
-			if (me.isEnemyBaseSpotted()){
+			if (me.isEnemyBaseSpotted()) {
 				me.ctask = createSoldierTask;
-			}
-			else if (me.isHealthCritic()){
+			} else if (me.isHealthCritic()) {
 				me.ctask = healMySelfTask;
 			}
 
@@ -112,7 +110,7 @@ public abstract class WarBaseBrainController extends WarBaseBrain {
 		@Override
 		String exec(WarBrain bc) {
 			WarBaseBrainController me = (WarBaseBrainController) bc;
-			
+
 			me.setDebugString("Heal me");
 
 			if (me.isHealthGood()) {
@@ -130,43 +128,51 @@ public abstract class WarBaseBrainController extends WarBaseBrain {
 		@Override
 		String exec(WarBrain bc) {
 			WarBaseBrainController me = (WarBaseBrainController) bc;
-			
+
 			me.setDebugString("Creation de soldats");
-			
+
 			if (me.isAttackTerminated()) {
 				me.ctask = me.aStack.pop();
 				return me.idle();
 			} else if (me.isHealthCritic()) {
 				me.aStack.push(me.ctask);
 				me.ctask = healMySelfTask;
-			} else if(me.getMaxHealth() * 0.45 < me.getHealth() - WarRocketLauncher.COST){
-				me.setNextAgentToCreate(WarAgentType.WarRocketLauncher);
-			} else if(me.getMaxHealth() * 0.45 < me.getHealth() - WarHeavy.COST){
-				me.setNextAgentToCreate(WarAgentType.WarHeavy);
-			} else if(me.getMaxHealth() * 0.45 < me.getHealth() - WarLight.COST){
-				me.setNextAgentToCreate(WarAgentType.WarLight);
-			} else if(me.getMaxHealth() * 0.45 < me.getHealth() - WarEngineer.COST){
-				me.setNextAgentToCreate(WarAgentType.WarEngineer);
-			} else if(me.getMaxHealth() * 0.45 < me.getHealth() - WarExplorer.COST){
-				me.setNextAgentToCreate(WarAgentType.WarExplorer);
-			} else if(!me.isBagEmpty()){
-				return me.eat();
-			} else {
 				return me.idle();
+			} else {
+				int nbEachSoldierRoles[] = { me.getNumberOfAgentsInRole("Soldiers", "RocketLauncher"),
+						me.getNumberOfAgentsInRole("Soldiers", "Light"),
+						me.getNumberOfAgentsInRole("Soldiers", "Heavy") };
+				int indexMin = Ints.indexOf(nbEachSoldierRoles, Ints.min(nbEachSoldierRoles));
+
+				switch (indexMin) {
+				case 0:
+					if (me.getMaxHealth() * 0.45 < me.getHealth() - WarRocketLauncher.COST)
+						me.setNextAgentToCreate(WarAgentType.WarRocketLauncher);
+					break;
+				case 1:
+					if (me.getMaxHealth() * 0.45 < me.getHealth() - WarLight.COST)
+						me.setNextAgentToCreate(WarAgentType.WarLight);
+					break;
+				case 2:
+					if (me.getMaxHealth() * 0.45 < me.getHealth() - WarHeavy.COST)
+						me.setNextAgentToCreate(WarAgentType.WarHeavy);
+					break;
+				default:
+					return me.idle();
+				}
 			}
 
 			return me.create();
 		}
 	};
 
-	
 	/*******************************************************
 	 *********** CONDITIONS CHANGEMENT ACTIVITE ************
 	 *******************************************************/
 
 	public boolean isEnemyBaseSpotted() {
 		for (WarMessage msg : getMessages()) {
-			
+
 			if (msg.getMessage().equals("enemyBaseSpotted")) {
 				setDebugString("Explorers spotted the enemy base");
 				return true;
@@ -192,5 +198,4 @@ public abstract class WarBaseBrainController extends WarBaseBrain {
 		return getHealth() > 0.8 * getMaxHealth();
 	}
 
-	
 }

@@ -32,6 +32,7 @@ public abstract class WarRocketLauncherBrainController extends WarRocketLauncher
 		super();
 		ctask = wiggleTask;
 		aStack = new Stack<WTask>();
+		requestRole("Soldiers", "RocketLauncher");
 	}
 
 	@Override
@@ -44,7 +45,7 @@ public abstract class WarRocketLauncherBrainController extends WarRocketLauncher
 		String reflex = doReflexes();
 		if (reflex != null)
 			return reflex;
-
+		
 		// Sinon exécution de l'activité courrante
 		return ctask.exec(this);
 	}
