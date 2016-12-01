@@ -68,10 +68,11 @@ public abstract class WarExplorerBrainController extends WarExplorerBrain {
 				distanceBase = msg.getDistance();
 				baseNeedFood = true;
 			} else if (msg.getMessage().equals("ImLeadingTheAttack")) {
-				attackLeaderID = Integer.valueOf(msg.getContent()[0]);
-				someoneIsInCharge = true;
-				System.out.println("Explorer " + getID() + " received " + msg.getMessage() + " from leader " + attackLeaderID);
-				
+				if(!someoneIsInCharge) {
+						attackLeaderID = Integer.valueOf(msg.getContent()[0]);
+						someoneIsInCharge = true;
+						// System.out.println("Explorer " + getID() + " received " + msg.getMessage() + " from leader " + attackLeaderID);
+				}
 			}
 		}
 
@@ -105,7 +106,7 @@ public abstract class WarExplorerBrainController extends WarExplorerBrain {
 					ctask = leadTheAttack;
 				} // Si je suis en charge de l'attaque 
 				else if (attackLeaderID == getID()) {
-					System.out.println("Explorer " + getID() + " is in charge");
+					// System.out.println("Explorer " + getID() + " is in charge");
 					broadcastMessageToGroup("Soldiers", "enemyBaseSpotted", coord);
 					broadcastMessageToAgentType(WarAgentType.WarExplorer, "ImLeadingTheAttack", getID() + "");
 				}

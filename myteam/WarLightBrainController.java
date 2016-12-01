@@ -1,6 +1,7 @@
 package myteam;
 
 import edu.warbot.agents.agents.WarExplorer;
+import edu.warbot.agents.agents.WarHeavy;
 import edu.warbot.agents.agents.WarLight;
 import edu.warbot.agents.agents.WarRocketLauncher;
 import edu.warbot.agents.enums.WarAgentType;
@@ -16,9 +17,11 @@ import java.util.List;
 import java.util.Stack;
 
 public abstract class WarLightBrainController extends WarLightBrain {
+	private Stack<WTask> aStack; // Pile des activites a� effectuer
+	private WTask ctask; // Une activite
 
-	private Stack<WTask> aStack; // Pile des activités à effectuer
-	private WTask ctask; // Une activité
+	private List<WarAgentPercept> percepts;
+	private List<WarMessage> messages;
 
 	boolean baseAttacked = false;
 	boolean enemyBaseSpotted = false;
@@ -29,6 +32,10 @@ public abstract class WarLightBrainController extends WarLightBrain {
 	double angleToEBase = 0;
 	double distanceToBase = 0;
 	double angleToBase = 0;
+
+	int wigglingSince = 0;
+
+	static final int timeToWiggle = 50;
 
 	public WarLightBrainController() {
 		super();
@@ -41,6 +48,8 @@ public abstract class WarLightBrainController extends WarLightBrain {
 	public String action() {
 
 		requestRole("Soldiers", "Light");
+		messages = getMessages();
+		percepts = getPercepts();
 
 		// Traitement des messages
 		handlingMessages();
@@ -50,7 +59,7 @@ public abstract class WarLightBrainController extends WarLightBrain {
 		if (reflex != null)
 			return reflex;
 
-		// Sinon exécution de l'activité courrante
+		// Sinon execution de l'activite courrante
 		return ctask.exec(this);
 	}
 
@@ -59,14 +68,14 @@ public abstract class WarLightBrainController extends WarLightBrain {
 	 *******************************************************/
 	public void handlingMessages() {
 
-		for (WarMessage msg : getMessages()) {
+		for (WarMessage msg : messages) {
 
 			// Si la base ennemie est reperee
 			if (msg.getMessage().equals("enemyBaseSpotted")) {
+
 				Vector2 exToEBase = new Vector2(Float.valueOf(msg.getContent()[0]), Float.valueOf(msg.getContent()[1]));
 				Vector2 rLauncherToEx = VUtils.cartFromPolaire(msg.getAngle(), msg.getDistance());
 				Vector2 rLauncherToEBase = rLauncherToEx.add(exToEBase);
-
 				angleToEBase = VUtils.polaireFromCart(rLauncherToEBase).x;
 				distanceToEBase = VUtils.polaireFromCart(rLauncherToEBase).y;
 
@@ -96,28 +105,24 @@ public abstract class WarLightBrainController extends WarLightBrain {
 			return ACTION_MOVE;
 		}
 
-		for (WarAgentPercept percept : getPercepts()) {
+		for (WarAgentPercept percept : percepts) {
 			if (percept.getType() != WarAgentType.WarFood && percept.getDistance() <= WarFood.MAX_DISTANCE_TAKE) {
 				return ACTION_TAKE;
 			} else if (isEnemy(percept) && percept.getType() != WarAgentType.WarFood) {
 				setHeading(percept.getAngle());
 				if (isReloaded()) {
 					return ACTION_FIRE;
-				} else
+				} else if (isReloading())
+					return ACTION_IDLE;
+				else
 					return ACTION_RELOAD;
-			} else if (!isEnemy(percept)) {
-				if (toCloseFromFriend(percept)) {
-					setRandomHeading();
-					return ACTION_MOVE;
-				}
+			} else if (!isEnemy(percept) && percept.getType() == WarAgentType.WarBase) {
+				setRandomHeading();
+				return ACTION_MOVE;
 			}
 		}
 
 		return null;
-	}
-
-	public boolean toCloseFromFriend(WarAgentPercept percept) {
-		return percept.getDistance() <= (WarLight.DISTANCE_OF_VIEW / 10);
 	}
 
 	/*******************************************************
@@ -132,7 +137,15 @@ public abstract class WarLightBrainController extends WarLightBrain {
 			WarLightBrainController me = (WarLightBrainController) bc;
 
 			me.setDebugString("Wiggle");
-			me.setRandomHeading();
+
+			if (me.tooCloseFromFriend()) {
+				me.wigglingSince = 0;
+				me.setRandomHeading();
+			} else if (!me.tooCloseFromFriend() && me.wigglingSince < WarLightBrainController.timeToWiggle) {
+				me.wigglingSince++;
+			} else if (!me.tooCloseFromFriend() && !me.aStack.isEmpty()) {
+				me.ctask = me.aStack.pop();
+			}
 
 			return me.move();
 		}
@@ -152,12 +165,18 @@ public abstract class WarLightBrainController extends WarLightBrain {
 			if (me.endOfAttack) {
 				me.ctask = me.aStack.pop();
 				return me.idle();
+			} else if (me.tooCloseFromFriend()) {
+				me.aStack.push(me.ctask);
+				me.ctask = wiggleTask;
+				return ACTION_IDLE;
 			}
 
 			// Si la base enemie est a portee
 			if (me.distanceToEBase < WarBullet.RANGE) {
 				me.setHeading(me.angleToEBase);
-				if (!me.isReloaded())
+				if (me.isReloading())
+					return ACTION_MOVE;
+				else if (!me.isReloaded())
 					return me.beginReloadWeapon();
 			} else {
 				me.setHeading(me.angleToEBase);
@@ -182,9 +201,13 @@ public abstract class WarLightBrainController extends WarLightBrain {
 			if (!me.baseAttacked) {
 				me.ctask = me.aStack.pop();
 				return me.idle();
+			} else if (me.tooCloseFromFriend()) {
+				me.aStack.push(me.ctask);
+				me.ctask = wiggleTask;
+				return ACTION_IDLE;
 			}
 
-			for (WarAgentPercept percept : me.getPercepts()) {
+			for (WarAgentPercept percept : me.percepts) {
 				if (me.isEnemySoldier(percept) || percept.getAngle() == me.angleToBase) {
 					if (me.isReloaded()) {
 						me.setHeading(percept.getAngle());
@@ -212,8 +235,23 @@ public abstract class WarLightBrainController extends WarLightBrain {
 	 * @return Vrai si l'agent est un type combattant et appartient a l'ennemi
 	 */
 	public boolean isEnemySoldier(WarAgentPercept percept) {
-		return isEnemy(percept) && (percept.getType() == WarAgentType.WarLight
+		return isEnemy(percept) && (percept.getType() == WarAgentType.WarRocketLauncher
 				|| percept.getType() == WarAgentType.WarHeavy || percept.getType() == WarAgentType.WarLight);
+	}
+
+	public boolean tooCloseFromFriend() {
+
+		for (WarAgentPercept percept : percepts)
+			if (!isEnemy(percept) && (percept.getType().equals(WarAgentType.WarRocketLauncher)
+					|| percept.getType().equals(WarAgentType.WarHeavy)
+					|| percept.getType().equals(WarAgentType.WarLight))) {
+				System.out
+						.println("Light " + getID() + " observes that is too close from " + percept.getID());
+				return true;
+			}
+
+		return false;
+
 	}
 
 }

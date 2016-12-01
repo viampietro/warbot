@@ -84,7 +84,7 @@ public abstract class WarBaseBrainController extends WarBaseBrain {
 
 		if (getHealth() < getMaxHealth() && !isBagEmpty())
 			return ACTION_EAT;
-
+		
 		return null;
 	}
 
@@ -141,7 +141,7 @@ public abstract class WarBaseBrainController extends WarBaseBrain {
 				me.aStack.push(me.ctask);
 				me.ctask = healMySelfTask;
 				return me.idle();
-			} else if (me.ticksBeforeCreate < 10) {
+			} else if (me.ticksBeforeCreate < 50) {
 				me.ticksBeforeCreate++;
 				return me.idle();
 			} else {
@@ -152,7 +152,7 @@ public abstract class WarBaseBrainController extends WarBaseBrain {
 						me.getNumberOfAgentsInRole("Soldiers", "Light"),
 						me.getNumberOfAgentsInRole("Soldiers", "Heavy") };
 				int indexMin = Ints.indexOf(nbEachSoldierRoles, Ints.min(nbEachSoldierRoles));
-
+				
 				switch (indexMin) {
 				case 0:
 					if (me.getMaxHealth() * 0.45 < me.getHealth() - WarRocketLauncher.COST)
