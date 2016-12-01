@@ -1,8 +1,11 @@
 package myteam;
 
+import edu.warbot.agents.agents.WarHeavy;
+import edu.warbot.agents.agents.WarLight;
 import edu.warbot.agents.enums.WarAgentType;
 import edu.warbot.agents.percepts.WarAgentPercept;
 import edu.warbot.agents.projectiles.WarRocket;
+import edu.warbot.agents.projectiles.WarShell;
 import edu.warbot.agents.resources.WarFood;
 import edu.warbot.brains.WarBrain;
 import edu.warbot.brains.brains.WarHeavyBrain;
@@ -29,14 +32,14 @@ public abstract class WarHeavyBrainController extends WarHeavyBrain {
 		super();
 		ctask = wiggleTask;
 		aStack = new Stack<WTask>();
-		
+
 	}
 
 	@Override
 	public String action() {
-		
+
 		requestRole("Soldiers", "Heavy");
-		
+
 		// Traitement des messages
 		handlingMessages();
 
@@ -62,13 +65,16 @@ public abstract class WarHeavyBrainController extends WarHeavyBrain {
 				Vector2 rLauncherToEx = VUtils.cartFromPolaire(msg.getAngle(), msg.getDistance());
 				Vector2 rLauncherToEBase = rLauncherToEx.add(exToEBase);
 
-				enemyBaseSpotted = true;
-				endOfAttack = false;
 				angleToEBase = VUtils.polaireFromCart(rLauncherToEBase).x;
 				distanceToEBase = VUtils.polaireFromCart(rLauncherToEBase).y;
+				
+				if (!enemyBaseSpotted) {
+					enemyBaseSpotted = true;
+					endOfAttack = false;
 
-				aStack.push(ctask);
-				ctask = attackTask;
+					aStack.push(ctask);
+					ctask = attackTask;
+				}
 			} else if (msg.getMessage().equals("Base is being attacked")) {
 				baseAttacked = true;
 				angleToBase = msg.getAngle();
@@ -82,12 +88,12 @@ public abstract class WarHeavyBrainController extends WarHeavyBrain {
 	 ******************** REFLEXES *************************
 	 *******************************************************/
 	public String doReflexes() {
-		
-		if(isBlocked()) {
+
+		if (isBlocked()) {
 			setRandomHeading();
 			return ACTION_MOVE;
 		}
-		
+
 		for (WarAgentPercept percept : getPercepts()) {
 			if (percept.getType() != WarAgentType.WarFood && percept.getDistance() <= WarFood.MAX_DISTANCE_TAKE) {
 				return ACTION_TAKE;
@@ -97,10 +103,19 @@ public abstract class WarHeavyBrainController extends WarHeavyBrain {
 					return ACTION_FIRE;
 				} else
 					return ACTION_RELOAD;
+			} else if (!isEnemy(percept)) {
+				if (toCloseFromFriend(percept)) {
+					setRandomHeading();
+					return ACTION_MOVE;
+				}
 			}
 		}
 
 		return null;
+	}
+
+	public boolean toCloseFromFriend(WarAgentPercept percept) {
+		return percept.getDistance() <= (WarHeavy.DISTANCE_OF_VIEW / 10);
 	}
 
 	/*******************************************************
@@ -115,15 +130,7 @@ public abstract class WarHeavyBrainController extends WarHeavyBrain {
 			WarHeavyBrainController me = (WarHeavyBrainController) bc;
 
 			me.setDebugString("Wiggle");
-
-			if (me.enemyBaseSpotted) {
-				me.aStack.push(me.ctask);
-				me.ctask = attackTask;
-			} else if (me.baseAttacked) {
-				me.aStack.push(me.ctask);
-				me.ctask = defendTask;
-			}
-
+			me.setRandomHeading();
 			return me.move();
 		}
 	};
@@ -145,9 +152,9 @@ public abstract class WarHeavyBrainController extends WarHeavyBrain {
 			}
 
 			// Si la base enemie est a portee
-			if (me.distanceToEBase < WarRocket.RANGE) {
+			if (me.distanceToEBase < WarShell.RANGE) {
 				me.setHeading(me.angleToEBase);
-				if (me.isReloaded())
+				if (!me.isReloaded())
 					return me.beginReloadWeapon();
 			} else {
 				me.setHeading(me.angleToEBase);

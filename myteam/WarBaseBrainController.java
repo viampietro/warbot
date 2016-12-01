@@ -22,7 +22,10 @@ public abstract class WarBaseBrainController extends WarBaseBrain {
 
 	private Stack<WTask> aStack; // Pile des activités à effectuer
 	private WTask ctask; // Une activité
-
+	
+	private boolean enemyBaseSpotted = false;
+	private int ticksBeforeCreate = 0;
+	
 	public WarBaseBrainController() {
 		super();
 		ctask = stayIdleTask;
@@ -53,7 +56,9 @@ public abstract class WarBaseBrainController extends WarBaseBrain {
 		for (WarMessage msg : getMessages()) {
 			if (msg.getMessage().equals("baseInfoAnswer")) {
 				reply(msg, "baseInfoResponse", Integer.toString(getID()));
-			} else if (msg.getMessage().equals("enemyBaseSpotted")) {
+			} else if (msg.getMessage().equals("enemyBaseSpotted") && !enemyBaseSpotted) {
+				setDebugString("Explorers spotted the enemy base");
+				enemyBaseSpotted = true;
 				aStack.push(ctask);
 				ctask = createSoldierTask;
 			}
@@ -95,9 +100,7 @@ public abstract class WarBaseBrainController extends WarBaseBrain {
 
 			me.setDebugString("Idle");
 
-			if (me.isEnemyBaseSpotted()) {
-				me.ctask = createSoldierTask;
-			} else if (me.isHealthCritic()) {
+			if (me.isHealthCritic()) {
 				me.ctask = healMySelfTask;
 			}
 
@@ -138,6 +141,9 @@ public abstract class WarBaseBrainController extends WarBaseBrain {
 				me.aStack.push(me.ctask);
 				me.ctask = healMySelfTask;
 				return me.idle();
+			} else if (me.ticksBeforeCreate < 10) {
+				me.ticksBeforeCreate++;
+				return me.idle();
 			} else {
 				System.out.println("RocketLauncher : " + me.getNumberOfAgentsInRole("Soldiers", "RocketLauncher")
 							+ " Light : " + me.getNumberOfAgentsInRole("Soldiers", "Light")
@@ -151,14 +157,17 @@ public abstract class WarBaseBrainController extends WarBaseBrain {
 				case 0:
 					if (me.getMaxHealth() * 0.45 < me.getHealth() - WarRocketLauncher.COST)
 						me.setNextAgentToCreate(WarAgentType.WarRocketLauncher);
+						me.ticksBeforeCreate = 0;
 					break;
 				case 1:
 					if (me.getMaxHealth() * 0.45 < me.getHealth() - WarLight.COST)
 						me.setNextAgentToCreate(WarAgentType.WarLight);
+						me.ticksBeforeCreate = 0;
 					break;
 				case 2:
 					if (me.getMaxHealth() * 0.45 < me.getHealth() - WarHeavy.COST)
 						me.setNextAgentToCreate(WarAgentType.WarHeavy);
+						me.ticksBeforeCreate = 0;
 					break;
 				default:
 					return me.idle();
@@ -172,17 +181,6 @@ public abstract class WarBaseBrainController extends WarBaseBrain {
 	/*******************************************************
 	 *********** CONDITIONS CHANGEMENT ACTIVITE ************
 	 *******************************************************/
-
-	public boolean isEnemyBaseSpotted() {
-		for (WarMessage msg : getMessages()) {
-
-			if (msg.getMessage().equals("enemyBaseSpotted")) {
-				setDebugString("Explorers spotted the enemy base");
-				return true;
-			}
-		}
-		return false;
-	}
 
 	public boolean isAttackTerminated() {
 		for (WarMessage msg : getMessages()) {
