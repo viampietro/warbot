@@ -84,10 +84,13 @@ public abstract class WarHeavyBrainController extends WarHeavyBrain {
 					aStack.push(ctask);
 					ctask = attackTask;
 				}
-			} else if (msg.getMessage().equals("Base is being attacked")) {
+			} else if (msg.getMessage().equals("baseAttacked")) {
 				baseAttacked = true;
+				baseIsSafe = false;
 				angleToBase = msg.getAngle();
 				distanceToBase = msg.getDistance();
+				aStack.push(ctask);
+				ctask = defendTask;
 			}
 
 		}
@@ -206,7 +209,7 @@ public abstract class WarHeavyBrainController extends WarHeavyBrain {
 			}
 
 			for (WarAgentPercept percept : me.percepts) {
-				if (me.isEnemySoldier(percept) || percept.getAngle() == me.angleToBase) {
+				if (me.isEnemySoldier(percept)) {
 					if (me.isReloaded()) {
 						me.setHeading(percept.getAngle());
 						return ACTION_FIRE;
@@ -243,13 +246,12 @@ public abstract class WarHeavyBrainController extends WarHeavyBrain {
 			if (!isEnemy(percept) && (percept.getType().equals(WarAgentType.WarRocketLauncher)
 					|| percept.getType().equals(WarAgentType.WarHeavy)
 					|| percept.getType().equals(WarAgentType.WarLight))) {
-				System.out
-						.println("Heavy " + getID() + " observes that is too close from " + percept.getID());
+				
 				return true;
 			}
 
 		return false;
 
 	}
-	
+
 }

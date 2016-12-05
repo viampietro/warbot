@@ -17,24 +17,29 @@ import java.util.List;
 import java.util.Stack;
 
 public abstract class WarLightBrainController extends WarLightBrain {
+
 	private Stack<WTask> aStack; // Pile des activites a  effectuer
 	private WTask ctask; // Une activite
 
 	private List<WarAgentPercept> percepts;
 	private List<WarMessage> messages;
 
+	// Enemy Base attack attributes
 	boolean baseAttacked = false;
-	boolean enemyBaseSpotted = false;
 	boolean baseIsSafe = true;
-	boolean endOfAttack = true;
-
+	
 	double distanceToEBase = 0;
 	double angleToEBase = 0;
+	
+	// Base defence attributes
+	boolean enemyBaseSpotted = false;
+	boolean endOfAttack = true;
+
 	double distanceToBase = 0;
 	double angleToBase = 0;
-
+	
+	// Keeping distance beetween the agents
 	int wigglingSince = 0;
-
 	static final int timeToWiggle = 50;
 
 	public WarLightBrainController() {
@@ -48,6 +53,7 @@ public abstract class WarLightBrainController extends WarLightBrain {
 	public String action() {
 
 		requestRole("Soldiers", "Light");
+		
 		messages = getMessages();
 		percepts = getPercepts();
 
@@ -86,10 +92,13 @@ public abstract class WarLightBrainController extends WarLightBrain {
 					aStack.push(ctask);
 					ctask = attackTask;
 				}
-			} else if (msg.getMessage().equals("Base is being attacked")) {
+			} else if (msg.getMessage().equals("baseAttacked")) {
 				baseAttacked = true;
+				baseIsSafe = false;
 				angleToBase = msg.getAngle();
 				distanceToBase = msg.getDistance();
+				aStack.push(ctask);
+				ctask = defendTask;
 			}
 
 		}
@@ -112,9 +121,7 @@ public abstract class WarLightBrainController extends WarLightBrain {
 				setHeading(percept.getAngle());
 				if (isReloaded()) {
 					return ACTION_FIRE;
-				} else if (isReloading())
-					return ACTION_IDLE;
-				else
+				} else
 					return ACTION_RELOAD;
 			} else if (!isEnemy(percept) && percept.getType() == WarAgentType.WarBase) {
 				setRandomHeading();
@@ -174,9 +181,7 @@ public abstract class WarLightBrainController extends WarLightBrain {
 			// Si la base enemie est a portee
 			if (me.distanceToEBase < WarBullet.RANGE) {
 				me.setHeading(me.angleToEBase);
-				if (me.isReloading())
-					return ACTION_MOVE;
-				else if (!me.isReloaded())
+				if (!me.isReloaded())
 					return me.beginReloadWeapon();
 			} else {
 				me.setHeading(me.angleToEBase);
@@ -208,7 +213,7 @@ public abstract class WarLightBrainController extends WarLightBrain {
 			}
 
 			for (WarAgentPercept percept : me.percepts) {
-				if (me.isEnemySoldier(percept) || percept.getAngle() == me.angleToBase) {
+				if (me.isEnemySoldier(percept)) {
 					if (me.isReloaded()) {
 						me.setHeading(percept.getAngle());
 						return ACTION_FIRE;
@@ -245,8 +250,7 @@ public abstract class WarLightBrainController extends WarLightBrain {
 			if (!isEnemy(percept) && (percept.getType().equals(WarAgentType.WarRocketLauncher)
 					|| percept.getType().equals(WarAgentType.WarHeavy)
 					|| percept.getType().equals(WarAgentType.WarLight))) {
-				System.out
-						.println("Light " + getID() + " observes that is too close from " + percept.getID());
+				
 				return true;
 			}
 

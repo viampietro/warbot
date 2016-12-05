@@ -12,6 +12,7 @@ import edu.warbot.brains.brains.WarBaseBrain;
 import edu.warbot.communications.WarMessage;
 
 import java.lang.reflect.Array;
+import java.util.List;
 import java.util.Stack;
 
 import com.android.org.bouncycastle.util.Integers;
@@ -22,10 +23,16 @@ public abstract class WarBaseBrainController extends WarBaseBrain {
 
 	private Stack<WTask> aStack; // Pile des activités à effectuer
 	private WTask ctask; // Une activité
-	
+
+	private List<WarAgentPercept> percepts;
+	private List<WarMessage> messages;
+
 	private boolean enemyBaseSpotted = false;
 	private int ticksBeforeCreate = 0;
 	
+	private int ticksSinceNoEnemy = 0;
+	private static final int ticksToBeSafe = 100;
+
 	public WarBaseBrainController() {
 		super();
 		ctask = stayIdleTask;
@@ -34,6 +41,9 @@ public abstract class WarBaseBrainController extends WarBaseBrain {
 	}
 
 	public String action() {
+
+		percepts = getPercepts();
+		messages = getMessages();
 
 		// Traitement des messages
 		handlingMessages();
@@ -52,8 +62,8 @@ public abstract class WarBaseBrainController extends WarBaseBrain {
 	 *******************************************************/
 	public void handlingMessages() {
 
-		// Traitement des messages reçus
-		for (WarMessage msg : getMessages()) {
+		// Traitement des messages recus
+		for (WarMessage msg : messages) {
 			if (msg.getMessage().equals("baseInfoAnswer")) {
 				reply(msg, "baseInfoResponse", Integer.toString(getID()));
 			} else if (msg.getMessage().equals("enemyBaseSpotted") && !enemyBaseSpotted) {
@@ -64,14 +74,17 @@ public abstract class WarBaseBrainController extends WarBaseBrain {
 			}
 		}
 
-		// Message à envoyer selon la perception
-		for (WarAgentPercept p : getPercepts()) {
-			if (isEnemy(p)) {
-				broadcastMessageToAll("IamSpotted", "");
-			}
+		if (baseIsAttacked()) {
+			setDebugString("I'm threatened");
+			ticksSinceNoEnemy = 0;
+			broadcastMessageToAgentType(WarAgentType.WarRocketLauncher, "baseAttacked", "");
+		} else if(ticksSinceNoEnemy < ticksToBeSafe) {
+			ticksSinceNoEnemy++;
+		} else {
+			broadcastMessageToAgentType(WarAgentType.WarRocketLauncher, "baseIsSafe", "");
 		}
 
-		// Message à envoyer selon l'état
+		// Message a� envoyer selon l'etat
 		if (isBagEmpty())
 			broadcastMessageToAgentType(WarAgentType.WarExplorer, "baseNeedFood", Integer.toString(getID()));
 
@@ -84,7 +97,7 @@ public abstract class WarBaseBrainController extends WarBaseBrain {
 
 		if (getHealth() < getMaxHealth() && !isBagEmpty())
 			return ACTION_EAT;
-		
+
 		return null;
 	}
 
@@ -146,28 +159,29 @@ public abstract class WarBaseBrainController extends WarBaseBrain {
 				return me.idle();
 			} else {
 				System.out.println("RocketLauncher : " + me.getNumberOfAgentsInRole("Soldiers", "RocketLauncher")
-							+ " Light : " + me.getNumberOfAgentsInRole("Soldiers", "Light")
-							+ " Heavy : " + me.getNumberOfAgentsInRole("Soldiers", "Heavy"));
+						+ " Light : " + me.getNumberOfAgentsInRole("Soldiers", "Light") + " Heavy : "
+						+ me.getNumberOfAgentsInRole("Soldiers", "Heavy"));
+				
 				int nbEachSoldierRoles[] = { me.getNumberOfAgentsInRole("Soldiers", "RocketLauncher"),
 						me.getNumberOfAgentsInRole("Soldiers", "Light"),
 						me.getNumberOfAgentsInRole("Soldiers", "Heavy") };
 				int indexMin = Ints.indexOf(nbEachSoldierRoles, Ints.min(nbEachSoldierRoles));
-				
+
 				switch (indexMin) {
 				case 0:
 					if (me.getMaxHealth() * 0.45 < me.getHealth() - WarRocketLauncher.COST)
 						me.setNextAgentToCreate(WarAgentType.WarRocketLauncher);
-						me.ticksBeforeCreate = 0;
+					me.ticksBeforeCreate = 0;
 					break;
 				case 1:
 					if (me.getMaxHealth() * 0.45 < me.getHealth() - WarLight.COST)
 						me.setNextAgentToCreate(WarAgentType.WarLight);
-						me.ticksBeforeCreate = 0;
+					me.ticksBeforeCreate = 0;
 					break;
 				case 2:
 					if (me.getMaxHealth() * 0.45 < me.getHealth() - WarHeavy.COST)
 						me.setNextAgentToCreate(WarAgentType.WarHeavy);
-						me.ticksBeforeCreate = 0;
+					me.ticksBeforeCreate = 0;
 					break;
 				default:
 					return me.idle();
@@ -183,7 +197,7 @@ public abstract class WarBaseBrainController extends WarBaseBrain {
 	 *******************************************************/
 
 	public boolean isAttackTerminated() {
-		for (WarMessage msg : getMessages()) {
+		for (WarMessage msg : messages) {
 			if (msg.getMessage().equals("Attack terminated")) {
 				return true;
 			}
@@ -197,6 +211,19 @@ public abstract class WarBaseBrainController extends WarBaseBrain {
 
 	public boolean isHealthGood() {
 		return getHealth() > 0.8 * getMaxHealth();
+	}
+
+	public boolean baseIsAttacked() {
+		for (WarAgentPercept percept : percepts) {
+			if (isEnemy(percept) && (percept.getType() == WarAgentType.WarHeavy
+					|| percept.getType() == WarAgentType.WarLight || percept.getType() == WarAgentType.WarRocketLauncher
+					|| percept.getType() == WarAgentType.WarKamikaze || percept.getType() == WarAgentType.WarEngineer
+					|| percept.getType() == WarAgentType.WarExplorer)) {
+				return true;
+			}
+		}
+
+		return false;
 	}
 
 }
