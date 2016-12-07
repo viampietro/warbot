@@ -1,4 +1,4 @@
-package myteam;
+package myteam_1;
 
 import edu.warbot.agents.agents.WarExplorer;
 import edu.warbot.agents.agents.WarHeavy;
@@ -76,7 +76,7 @@ public abstract class WarExplorerBrainController extends WarExplorerBrain {
 			}
 		}
 
-		// Message a  envoyer selon la perception
+		// Message aï¿½ envoyer selon la perception
 		for (WarAgentPercept p : getPercepts()) {
 			if (p.getType() == WarAgentType.WarFood && isBagFull()) {
 				Vector2 explorerToFood = VUtils.cartFromPolaire(p.getAngle(), p.getDistance());

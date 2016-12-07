@@ -17,7 +17,7 @@ import java.util.Stack;
 
 public abstract class WarRocketLauncherBrainController extends WarRocketLauncherBrain {
 
-	private Stack<WTask> aStack; // Pile des activites a  effectuer
+	private Stack<WTask> aStack; // Pile des activites aï¿½ effectuer
 	private WTask ctask; // Une activite
 
 	private List<WarAgentPercept> percepts;
@@ -76,14 +76,16 @@ public abstract class WarRocketLauncherBrainController extends WarRocketLauncher
 		for (WarMessage msg : messages) {
 
 			// Si la base ennemie est reperee
-			if (msg.getMessage().equals("enemyBaseSpotted")) {
+			if (msg.getMessage().equals("baseEnemyHasFound")) {
 
-				Vector2 exToEBase = new Vector2(Float.valueOf(msg.getContent()[0]), Float.valueOf(msg.getContent()[1]));
-				Vector2 rLauncherToEx = VUtils.cartFromPolaire(msg.getAngle(), msg.getDistance());
-				Vector2 rLauncherToEBase = rLauncherToEx.add(exToEBase);
+				Vector2 baseToEBase = new Vector2(Float.valueOf(msg.getContent()[0]), Float.valueOf(msg.getContent()[1]));
+				Vector2 rLauncherToBase = VUtils.cartFromPolaire(msg.getAngle(), msg.getDistance());
+				Vector2 rLauncherToEBase = rLauncherToBase.add(baseToEBase);
 				angleToEBase = VUtils.polaireFromCart(rLauncherToEBase).x;
 				distanceToEBase = VUtils.polaireFromCart(rLauncherToEBase).y;
-
+				
+				System.out.println("RL baseToEBase.x = " + msg.getContent()[0] + " baseToEBase.y = " + msg.getContent()[1]);
+				
 				if (!enemyBaseSpotted) {
 					enemyBaseSpotted = true;
 					endOfAttack = false;
@@ -180,7 +182,7 @@ public abstract class WarRocketLauncherBrainController extends WarRocketLauncher
 
 			me.setDebugString("Attack");
 
-			if (me.endOfAttack) {
+			/*if (me.endOfAttack) {
 				me.ctask = me.aStack.pop();
 				return me.idle();
 			} else if (me.tooCloseFromFriend()) {
@@ -188,7 +190,7 @@ public abstract class WarRocketLauncherBrainController extends WarRocketLauncher
 				me.aStack.push(me.ctask);
 				me.ctask = wiggleTask;
 				return ACTION_IDLE;
-			}
+			}*/
 
 			// Si la base enemmie est a portee
 			if (me.distanceToEBase < WarRocket.RANGE) {

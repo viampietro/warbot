@@ -1,4 +1,4 @@
-package myteam;
+package myteam_1;
 
 import edu.warbot.agents.agents.WarExplorer;
 import edu.warbot.agents.percepts.WarAgentPercept;

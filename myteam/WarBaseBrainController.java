@@ -29,10 +29,10 @@ public abstract class WarBaseBrainController extends WarBaseBrain {
 
 	private boolean enemyBaseSpotted = false;
 	private int ticksBeforeCreate = 0;
-	
+
 	private int ticksSinceNoEnemy = 0;
 	private static final int ticksToBeSafe = 100;
-	
+
 	private double angleEnemyBase;
 	private double distanceEnemyBase;
 
@@ -69,33 +69,37 @@ public abstract class WarBaseBrainController extends WarBaseBrain {
 		for (WarMessage msg : messages) {
 			if (msg.getMessage().equals("baseInfoAnswer")) {
 				reply(msg, "baseInfoResponse", Integer.toString(getID()));
-			} else if (msg.getMessage().equals("enemyBaseSpotted") && !enemyBaseSpotted) {
+			} else if (msg.getMessage().equals("EnemyBaseFound")) {
 				setDebugString("Explorers spotted the enemy base");
-				
-				Vector2 exToEBase = new Vector2(Float.valueOf(msg.getContent()[0]), Float.valueOf(msg.getContent()[1]));
-				Vector2 baseToEx = VUtils.cartFromPolaire(msg.getAngle(), msg.getDistance());
-				Vector2 baseToEBase = baseToEx.add(exToEBase);
-				angleEnemyBase = VUtils.polaireFromCart(baseToEBase).x;
-				distanceEnemyBase = VUtils.polaireFromCart(baseToEBase).y;
-				
-				String coord[] = { angleEnemyBase + "", distanceEnemyBase + "" };
-				
-				broadcastMessageToAll("baseEnemyHasFound", coord);
-				
-				enemyBaseSpotted = true;
-				aStack.push(ctask);
-				ctask = createSoldierTask;
-			} else if(msg.getMessage().equals("WhereIsTheEnemyBase")){
-				String coord[] = { angleEnemyBase + "", distanceEnemyBase + "" };
-				reply(msg, "enemyBaseCoord", coord);
-			}
+
+				if (!enemyBaseSpotted) {
+					
+					requestRole("Soldiers", "chief");
+					
+					Vector2 exToEBase = new Vector2(Float.valueOf(msg.getContent()[0]),
+							Float.valueOf(msg.getContent()[1]));
+					Vector2 baseToEx = VUtils.cartFromPolaire(msg.getAngle(), msg.getDistance());
+					Vector2 baseToEBase = baseToEx.add(exToEBase);
+					angleEnemyBase = VUtils.polaireFromCart(baseToEBase).x;
+					distanceEnemyBase = VUtils.polaireFromCart(baseToEBase).y;
+
+					String coord[] = { angleEnemyBase + "", distanceEnemyBase + "" };
+					
+					System.out.println("BASE : " + getID() + " angleEB = " + angleEnemyBase + " distanceEnemyBase = " + distanceEnemyBase); 
+					broadcastMessageToGroup("Soldiers", "baseEnemyHasFound", coord);
+
+					enemyBaseSpotted = true;
+					aStack.push(ctask);
+					ctask = createSoldierTask;
+				}
+			} 
 		}
 
 		if (baseIsAttacked()) {
 			setDebugString("I'm threatened");
 			ticksSinceNoEnemy = 0;
 			broadcastMessageToAgentType(WarAgentType.WarRocketLauncher, "baseAttacked", "");
-		} else if(ticksSinceNoEnemy < ticksToBeSafe) {
+		} else if (ticksSinceNoEnemy < ticksToBeSafe) {
 			ticksSinceNoEnemy++;
 		} else {
 			broadcastMessageToAgentType(WarAgentType.WarRocketLauncher, "baseIsSafe", "");
@@ -104,6 +108,13 @@ public abstract class WarBaseBrainController extends WarBaseBrain {
 		// Message a� envoyer selon l'etat
 		if (isBagEmpty())
 			broadcastMessageToAgentType(WarAgentType.WarExplorer, "baseNeedFood", Integer.toString(getID()));
+
+		if (enemyBaseSpotted) {
+
+			String coord[] = { angleEnemyBase + "", distanceEnemyBase + "" };
+			System.out.println("BASE " + getID() + " : angleEB = " + angleEnemyBase + " distanceEnemyBase = " + distanceEnemyBase);
+			broadcastMessageToGroup("Soldiers", "baseEnemyHasFound", coord);
+		}
 
 	}
 
@@ -176,12 +187,10 @@ public abstract class WarBaseBrainController extends WarBaseBrain {
 				return me.idle();
 			} else {
 				System.out.println("RocketLauncher : " + me.getNumberOfAgentsInRole("Soldiers", "RocketLauncher")
-						+ " Light : " + me.getNumberOfAgentsInRole("Soldiers", "Light") + " Heavy : "
-						+ me.getNumberOfAgentsInRole("Soldiers", "Heavy"));
-				
+						+ " Light : " + me.getNumberOfAgentsInRole("Soldiers", "Light"));
+
 				int nbEachSoldierRoles[] = { me.getNumberOfAgentsInRole("Soldiers", "RocketLauncher"),
-						me.getNumberOfAgentsInRole("Soldiers", "Light"),
-						me.getNumberOfAgentsInRole("Soldiers", "Heavy") };
+						me.getNumberOfAgentsInRole("Soldiers", "Light") };
 				int indexMin = Ints.indexOf(nbEachSoldierRoles, Ints.min(nbEachSoldierRoles));
 
 				switch (indexMin) {
@@ -193,11 +202,6 @@ public abstract class WarBaseBrainController extends WarBaseBrain {
 				case 1:
 					if (me.getMaxHealth() * 0.45 < me.getHealth() - WarLight.COST)
 						me.setNextAgentToCreate(WarAgentType.WarLight);
-					me.ticksBeforeCreate = 0;
-					break;
-				case 2:
-					if (me.getMaxHealth() * 0.45 < me.getHealth() - WarHeavy.COST)
-						me.setNextAgentToCreate(WarAgentType.WarHeavy);
 					me.ticksBeforeCreate = 0;
 					break;
 				default:

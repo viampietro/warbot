@@ -1,4 +1,4 @@
-package myteam;
+package myteam_1;
 
 import edu.warbot.agents.agents.WarEngineer;
 import edu.warbot.agents.enums.WarAgentType;

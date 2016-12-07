@@ -1,41 +1,48 @@
-package myteam;
+package myteam_1;
 
+import edu.warbot.agents.agents.WarExplorer;
 import edu.warbot.agents.agents.WarHeavy;
 import edu.warbot.agents.agents.WarLight;
+import edu.warbot.agents.agents.WarRocketLauncher;
 import edu.warbot.agents.enums.WarAgentType;
 import edu.warbot.agents.percepts.WarAgentPercept;
+import edu.warbot.agents.projectiles.WarBullet;
 import edu.warbot.agents.projectiles.WarRocket;
-import edu.warbot.agents.projectiles.WarShell;
 import edu.warbot.agents.resources.WarFood;
 import edu.warbot.brains.WarBrain;
-import edu.warbot.brains.brains.WarHeavyBrain;
+import edu.warbot.brains.brains.WarLightBrain;
 import edu.warbot.communications.WarMessage;
 
 import java.util.List;
 import java.util.Stack;
 
-public abstract class WarHeavyBrainController extends WarHeavyBrain {
-	private Stack<WTask> aStack; // Pile des activites a  effectuer
+public abstract class WarLightBrainController extends WarLightBrain {
+
+	private Stack<WTask> aStack; // Pile des activites aï¿½ effectuer
 	private WTask ctask; // Une activite
 
 	private List<WarAgentPercept> percepts;
 	private List<WarMessage> messages;
 
+	// Enemy Base attack attributes
 	boolean baseAttacked = false;
-	boolean enemyBaseSpotted = false;
 	boolean baseIsSafe = true;
-	boolean endOfAttack = true;
-
+	
 	double distanceToEBase = 0;
 	double angleToEBase = 0;
+	
+	// Base defence attributes
+	boolean enemyBaseSpotted = false;
+	boolean endOfAttack = true;
+
 	double distanceToBase = 0;
 	double angleToBase = 0;
-
+	
+	// Keeping distance beetween the agents
 	int wigglingSince = 0;
-
 	static final int timeToWiggle = 50;
 
-	public WarHeavyBrainController() {
+	public WarLightBrainController() {
 		super();
 		ctask = wiggleTask;
 		aStack = new Stack<WTask>();
@@ -45,7 +52,8 @@ public abstract class WarHeavyBrainController extends WarHeavyBrain {
 	@Override
 	public String action() {
 
-		requestRole("Soldiers", "Heavy");
+		requestRole("Soldiers", "Light");
+		
 		messages = getMessages();
 		percepts = getPercepts();
 
@@ -113,9 +121,7 @@ public abstract class WarHeavyBrainController extends WarHeavyBrain {
 				setHeading(percept.getAngle());
 				if (isReloaded()) {
 					return ACTION_FIRE;
-				} else if (isReloading())
-					return ACTION_MOVE;
-				else
+				} else
 					return ACTION_RELOAD;
 			} else if (!isEnemy(percept) && percept.getType() == WarAgentType.WarBase) {
 				setRandomHeading();
@@ -135,14 +141,14 @@ public abstract class WarHeavyBrainController extends WarHeavyBrain {
 		@Override
 		String exec(WarBrain bc) {
 
-			WarHeavyBrainController me = (WarHeavyBrainController) bc;
+			WarLightBrainController me = (WarLightBrainController) bc;
 
 			me.setDebugString("Wiggle");
 
 			if (me.tooCloseFromFriend()) {
 				me.wigglingSince = 0;
 				me.setRandomHeading();
-			} else if (!me.tooCloseFromFriend() && me.wigglingSince < WarHeavyBrainController.timeToWiggle) {
+			} else if (!me.tooCloseFromFriend() && me.wigglingSince < WarLightBrainController.timeToWiggle) {
 				me.wigglingSince++;
 			} else if (!me.tooCloseFromFriend() && !me.aStack.isEmpty()) {
 				me.ctask = me.aStack.pop();
@@ -159,7 +165,7 @@ public abstract class WarHeavyBrainController extends WarHeavyBrain {
 
 		@Override
 		String exec(WarBrain bc) {
-			WarHeavyBrainController me = (WarHeavyBrainController) bc;
+			WarLightBrainController me = (WarLightBrainController) bc;
 
 			me.setDebugString("Attack");
 
@@ -173,11 +179,9 @@ public abstract class WarHeavyBrainController extends WarHeavyBrain {
 			}
 
 			// Si la base enemie est a portee
-			if (me.distanceToEBase < WarShell.RANGE) {
+			if (me.distanceToEBase < WarBullet.RANGE) {
 				me.setHeading(me.angleToEBase);
-				if (me.isReloading())
-					return ACTION_IDLE;
-				else if (!me.isReloaded())
+				if (!me.isReloaded())
 					return me.beginReloadWeapon();
 			} else {
 				me.setHeading(me.angleToEBase);
@@ -195,7 +199,7 @@ public abstract class WarHeavyBrainController extends WarHeavyBrain {
 
 		@Override
 		String exec(WarBrain bc) {
-			WarHeavyBrainController me = (WarHeavyBrainController) bc;
+			WarLightBrainController me = (WarLightBrainController) bc;
 
 			me.setDebugString("Defend");
 

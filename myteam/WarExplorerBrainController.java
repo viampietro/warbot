@@ -15,7 +15,7 @@ public abstract class WarExplorerBrainController extends WarExplorerBrain {
 
 	private Stack<WTask> aStack; // Pile des activités à effectuer
 	private WTask ctask; // Une activité
-	
+
 	private int idBase;
 	private double angleBase;
 	private double distanceBase;
@@ -23,6 +23,7 @@ public abstract class WarExplorerBrainController extends WarExplorerBrain {
 	private double angleToHeadingFood;
 	private boolean enemyBaseOrTurretPercept;
 	private boolean enemyBaseFound;
+	private int nbTicksBlocked = 0;
 
 	public WarExplorerBrainController() {
 		super();
@@ -45,7 +46,6 @@ public abstract class WarExplorerBrainController extends WarExplorerBrain {
 		return ctask.exec(this);
 	}
 
-	
 	/*******************************************************
 	 ******************** MESSAGE HANDLING *****************
 	 *******************************************************/
@@ -56,29 +56,34 @@ public abstract class WarExplorerBrainController extends WarExplorerBrain {
 		// Traitement des messages reçus
 		for (WarMessage msg : getMessages()) {
 			if (msg.getMessage().equals("baseInfoResponse")) {
-				
+
 				idBase = Integer.parseInt(msg.getContent()[0]);
 				angleBase = msg.getAngle();
 				distanceBase = msg.getDistance();
-				
-			} else if (msg.getMessage().equals("baseNeedFood") && !isBagEmpty()) {
-				
+
+			} else if (msg.getMessage().equals("baseNeedFood") && (getNbElementsInBag() * 100) / getBagSize() >= 50) {
+
 				idBase = Integer.parseInt(msg.getContent()[0]);
 				angleBase = msg.getAngle();
 				distanceBase = msg.getDistance();
 				baseNeedFood = true;
-				
+
+				if (!ctask.equals(bringFoodToBase)) {
+					aStack.push(ctask);
+					ctask = bringFoodToBase;
+				}
+
 			}
 		}
 
 		// Message a� envoyer selon la perception
 		for (WarAgentPercept p : getPercepts()) {
 			if (p.getType() == WarAgentType.WarFood && isBagFull()) {
-				
+
 				Vector2 explorerToFood = VUtils.cartFromPolaire(p.getAngle(), p.getDistance());
 				String coord[] = { explorerToFood.x + "", explorerToFood.y + "" };
 				broadcastMessageToAll("foodFind", coord);
-				
+
 			} else if (p.getType() == WarAgentType.WarBase && isEnemy(p)) {
 
 				Vector2 explorerToBaseEnemy = VUtils.cartFromPolaire(p.getAngle(), p.getDistance());
@@ -101,33 +106,41 @@ public abstract class WarExplorerBrainController extends WarExplorerBrain {
 
 	}
 
-	
 	/*******************************************************
 	 ******************** REFLEXES *************************
 	 *******************************************************/
-	
+
 	public String doReflexes() {
 
-		if(enemyBaseOrTurretPercept && enemyBaseFound){
-			setHeading((getHeading() + 90) % 360);
-			setRandomHeading(180);
-			enemyBaseOrTurretPercept = false;
+		if (isBlocked()) {
+			setRandomHeading();
 			return ACTION_MOVE;
 		}
-		
+
+		if (enemyBaseOrTurretPercept && enemyBaseFound) {
+			if (nbTicksBlocked < 5) {
+				setHeading((getHeading() + 90) % 360);
+				setRandomHeading(180);
+				enemyBaseOrTurretPercept = false;
+				nbTicksBlocked++;
+				return ACTION_MOVE;
+			} else {
+				return ACTION_MOVE;
+			}
+		}
+		nbTicksBlocked = 0;
+
 		if (isHealthCritic() && !isBagEmpty())
 			return ACTION_EAT;
-		
-		if(baseNeedFood && !isBagEmpty()){
+
+		if (baseNeedFood && !isBagEmpty()) {
 			aStack.push(ctask);
 			ctask = bringFoodToBase;
 		}
-			
 
 		return null;
 	}
 
-	
 	/*******************************************************
 	 ********************* ACTIVITES ***********************
 	 *******************************************************/
@@ -183,7 +196,7 @@ public abstract class WarExplorerBrainController extends WarExplorerBrain {
 			return me.move();
 		}
 	};
-	
+
 	static WTask searchFoodToHeal = new WTask() {
 
 		@Override
@@ -194,10 +207,10 @@ public abstract class WarExplorerBrainController extends WarExplorerBrain {
 
 			if (me.isBlocked()) {
 				me.setRandomHeading();
-			} else if (!me.isHealthCritic()){
+			} else if (!me.isHealthCritic()) {
 				me.ctask = me.aStack.pop();
 				return me.idle();
-			} else if (!me.isBagEmpty()){
+			} else if (!me.isBagEmpty()) {
 				return me.eat();
 			} else if (me.foodPercept() != -1 && me.foodPercept() <= WarFood.MAX_DISTANCE_TAKE) {
 				return me.take();
@@ -218,16 +231,16 @@ public abstract class WarExplorerBrainController extends WarExplorerBrain {
 			WarExplorerBrainController me = (WarExplorerBrainController) ec;
 
 			me.setDebugString("Bring food to base");
-
-			if (me.isBagEmpty()) {
+			
+			if (me.isBlocked()) {
+				me.setRandomHeading();
+			} else if (me.isBagEmpty()) {
 				me.ctask = me.aStack.pop();
-				return me.idle();
-			} else if (me.isBlocked()) {
 				me.setRandomHeading();
 			} else if (me.isHealthCritic()) {
 				me.aStack.push(me.ctask);
 				me.ctask = healMySelfTask;
-			} else if (me.foodPercept() != -1 && !me.isBagFull()) {
+			} else if (me.foodPercept() != -1 && !me.isBagFull() && me.foodPercept() <= WarFood.MAX_DISTANCE_TAKE) {
 				me.setHeading(me.angleToHeadingFood);
 			} else if (me.distanceBase < WarFood.MAX_DISTANCE_TAKE) {
 				me.setIdNextAgentToGive(me.idBase);
@@ -240,7 +253,6 @@ public abstract class WarExplorerBrainController extends WarExplorerBrain {
 		}
 	};
 
-	
 	/*******************************************************
 	 *********** CONDITIONS CHANGEMENT ACTIVITE ************
 	 *******************************************************/
@@ -258,7 +270,7 @@ public abstract class WarExplorerBrainController extends WarExplorerBrain {
 	public boolean otherFindFood() {
 		for (WarMessage msg : getMessages()) {
 			if (msg.getMessage().equals("foodFind")) {
-				
+
 				Vector2 exToFood = new Vector2(Float.valueOf(msg.getContent()[0]), Float.valueOf(msg.getContent()[1]));
 				Vector2 meToEx = VUtils.cartFromPolaire(msg.getAngle(), msg.getDistance());
 				Vector2 meToFood = meToEx.add(exToFood);

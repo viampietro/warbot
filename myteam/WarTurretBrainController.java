@@ -2,6 +2,7 @@ package myteam;
 
 import edu.warbot.agents.enums.WarAgentType;
 import edu.warbot.agents.percepts.WarAgentPercept;
+import edu.warbot.agents.projectiles.WarBullet;
 import edu.warbot.brains.WarBrain;
 import edu.warbot.brains.brains.WarTurretBrain;
 import edu.warbot.communications.WarMessage;
@@ -79,9 +80,11 @@ public abstract class WarTurretBrainController extends WarTurretBrain
 			me.setDebugString("Idle");
 
 			if (me.enemySpotted()){
+				me.aStack.push(me.ctask);
 				me.ctask = attackTask;
 			}
 			else if (me.isHealthCritic()){
+				me.aStack.push(me.ctask);
 				me.ctask = healMySelfTask;
 			}
 			else{
@@ -99,13 +102,15 @@ public abstract class WarTurretBrainController extends WarTurretBrain
 		String exec(WarBrain bc) {
 			WarTurretBrainController me = (WarTurretBrainController) bc;
 			
-			me.setDebugString("Attack");
+			//me.setDebugString("Attack");
 
 			if(!me.enemySpotted()) {
+				me.setDebugString("personne");
 				me.ctask = me.aStack.pop();
 				return me.idle();
 			}
 			else{
+				me.setDebugString("Attack");
 				if(me.isReloaded()) {
 	                return me.fire();
 	            } else
@@ -148,7 +153,24 @@ public abstract class WarTurretBrainController extends WarTurretBrain
 	public boolean enemySpotted(){
 		for (WarAgentPercept p : getPercepts()) {
         	if(isEnemy(p)) {
-	            setHeading(p.getAngle());
+        		double vitesse;
+        		
+        		if(p.getType() == WarAgentType.WarExplorer)
+        			vitesse = 2.0;
+        		else if(p.getType() == WarAgentType.WarLight)
+        			vitesse = 1.8; 
+        		else if(p.getType() == WarAgentType.WarHeavy)
+        			vitesse = 0.8;
+        		else
+        			vitesse = 1.0;
+        		
+        		double nbTickAvantImpacte = p.getDistance() / WarBullet.SPEED;
+        		double distanceImpacte = vitesse * nbTickAvantImpacte;
+        		
+        		Vector2 enemyToEnemyFuturCoord = VUtils.cartFromPolaire(p.getHeading(), distanceImpacte);
+        		Vector2 turretToEnemy = VUtils.cartFromPolaire(p.getAngle(), p.getDistance());
+        		Vector2 turretToEnemyFuturCoord = turretToEnemy.add(enemyToEnemyFuturCoord);
+	            setHeading(VUtils.polaireFromCart(turretToEnemyFuturCoord).x);
 	            return true;
 	        }
         }

@@ -3,7 +3,7 @@ IconPath: MyTeam.png
 SoundPath: MyTeam.wav
 Description: |
     L'équipe d'Alexandre Culty et Vincent Iampietro.
-BrainsPackage: myteam
+BrainsPackage: myteam_1
 AgentsBrainClasses:
     WarBase: WarBaseBrainController
     WarExplorer: WarExplorerBrainController

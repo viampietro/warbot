@@ -1,47 +1,41 @@
-package myteam;
+package myteam_1;
 
 import edu.warbot.agents.agents.WarHeavy;
-import edu.warbot.agents.agents.WarRocketLauncher;
+import edu.warbot.agents.agents.WarLight;
 import edu.warbot.agents.enums.WarAgentType;
 import edu.warbot.agents.percepts.WarAgentPercept;
 import edu.warbot.agents.projectiles.WarRocket;
+import edu.warbot.agents.projectiles.WarShell;
 import edu.warbot.agents.resources.WarFood;
 import edu.warbot.brains.WarBrain;
-import edu.warbot.brains.brains.WarRocketLauncherBrain;
+import edu.warbot.brains.brains.WarHeavyBrain;
 import edu.warbot.communications.WarMessage;
-import jogamp.common.os.elf.SectionHeader;
 
 import java.util.List;
-import java.util.Set;
 import java.util.Stack;
 
-public abstract class WarRocketLauncherBrainController extends WarRocketLauncherBrain {
-
-	private Stack<WTask> aStack; // Pile des activites a  effectuer
+public abstract class WarHeavyBrainController extends WarHeavyBrain {
+	private Stack<WTask> aStack; // Pile des activites aï¿½ effectuer
 	private WTask ctask; // Une activite
 
 	private List<WarAgentPercept> percepts;
 	private List<WarMessage> messages;
 
-	// Base defence attributes
 	boolean baseAttacked = false;
-	int ticksNoEnemyMet;
-	
-	double distanceToBase = 0;
-	double angleToBase = 0;
-	
-	// Enemy Base attack attributes
 	boolean enemyBaseSpotted = false;
+	boolean baseIsSafe = true;
 	boolean endOfAttack = true;
 
 	double distanceToEBase = 0;
 	double angleToEBase = 0;
-	
-	// Keeping distance beetween the agents
+	double distanceToBase = 0;
+	double angleToBase = 0;
+
 	int wigglingSince = 0;
+
 	static final int timeToWiggle = 50;
 
-	public WarRocketLauncherBrainController() {
+	public WarHeavyBrainController() {
 		super();
 		ctask = wiggleTask;
 		aStack = new Stack<WTask>();
@@ -51,8 +45,7 @@ public abstract class WarRocketLauncherBrainController extends WarRocketLauncher
 	@Override
 	public String action() {
 
-		requestRole("Soldiers", "RocketLauncher");
-		
+		requestRole("Soldiers", "Heavy");
 		messages = getMessages();
 		percepts = getPercepts();
 
@@ -64,7 +57,7 @@ public abstract class WarRocketLauncherBrainController extends WarRocketLauncher
 		if (reflex != null)
 			return reflex;
 
-		// Sinon execution de l'activite courante
+		// Sinon execution de l'activite courrante
 		return ctask.exec(this);
 	}
 
@@ -91,23 +84,13 @@ public abstract class WarRocketLauncherBrainController extends WarRocketLauncher
 					aStack.push(ctask);
 					ctask = attackTask;
 				}
-			// Si la base est attaquee
 			} else if (msg.getMessage().equals("baseAttacked")) {
-				setDebugString("Base Attacked");
-				
+				baseAttacked = true;
+				baseIsSafe = false;
 				angleToBase = msg.getAngle();
 				distanceToBase = msg.getDistance();
-				
-				if(!baseAttacked) {
-					System.out.println("Rocket Launcher " + getID() + " knows that the base is being attacked");
-					baseAttacked = true;
-				
-					aStack.push(ctask);
-					ctask = defendTask;
-				}
-			// Si la base est sauve
-			} else if(msg.getMessage().equals("baseIsSafe")) {
-				baseAttacked = false;
+				aStack.push(ctask);
+				ctask = defendTask;
 			}
 
 		}
@@ -129,9 +112,10 @@ public abstract class WarRocketLauncherBrainController extends WarRocketLauncher
 			} else if (isEnemy(percept) && percept.getType() != WarAgentType.WarFood) {
 				setHeading(percept.getAngle());
 				if (isReloaded()) {
-					setTargetDistance(percept.getDistance());
 					return ACTION_FIRE;
-				} else
+				} else if (isReloading())
+					return ACTION_MOVE;
+				else
 					return ACTION_RELOAD;
 			} else if (!isEnemy(percept) && percept.getType() == WarAgentType.WarBase) {
 				setRandomHeading();
@@ -151,18 +135,17 @@ public abstract class WarRocketLauncherBrainController extends WarRocketLauncher
 		@Override
 		String exec(WarBrain bc) {
 
-			WarRocketLauncherBrainController me = (WarRocketLauncherBrainController) bc;
+			WarHeavyBrainController me = (WarHeavyBrainController) bc;
 
 			me.setDebugString("Wiggle");
 
 			if (me.tooCloseFromFriend()) {
 				me.wigglingSince = 0;
 				me.setRandomHeading();
-			} else if (!me.tooCloseFromFriend()) {
-				if(me.wigglingSince < WarRocketLauncherBrainController.timeToWiggle)
-					me.wigglingSince++;
-				else if (!me.aStack.isEmpty())
-					me.ctask = me.aStack.pop();
+			} else if (!me.tooCloseFromFriend() && me.wigglingSince < WarHeavyBrainController.timeToWiggle) {
+				me.wigglingSince++;
+			} else if (!me.tooCloseFromFriend() && !me.aStack.isEmpty()) {
+				me.ctask = me.aStack.pop();
 			}
 
 			return me.move();
@@ -176,7 +159,7 @@ public abstract class WarRocketLauncherBrainController extends WarRocketLauncher
 
 		@Override
 		String exec(WarBrain bc) {
-			WarRocketLauncherBrainController me = (WarRocketLauncherBrainController) bc;
+			WarHeavyBrainController me = (WarHeavyBrainController) bc;
 
 			me.setDebugString("Attack");
 
@@ -184,18 +167,17 @@ public abstract class WarRocketLauncherBrainController extends WarRocketLauncher
 				me.ctask = me.aStack.pop();
 				return me.idle();
 			} else if (me.tooCloseFromFriend()) {
-				me.wigglingSince = 0;
 				me.aStack.push(me.ctask);
 				me.ctask = wiggleTask;
 				return ACTION_IDLE;
 			}
 
-			// Si la base enemmie est a portee
-			if (me.distanceToEBase < WarRocket.RANGE) {
+			// Si la base enemie est a portee
+			if (me.distanceToEBase < WarShell.RANGE) {
 				me.setHeading(me.angleToEBase);
-				if (me.isReloaded())
-					me.setTargetDistance(me.distanceToEBase);
-				else
+				if (me.isReloading())
+					return ACTION_IDLE;
+				else if (!me.isReloaded())
 					return me.beginReloadWeapon();
 			} else {
 				me.setHeading(me.angleToEBase);
@@ -213,49 +195,33 @@ public abstract class WarRocketLauncherBrainController extends WarRocketLauncher
 
 		@Override
 		String exec(WarBrain bc) {
-			WarRocketLauncherBrainController me = (WarRocketLauncherBrainController) bc;
+			WarHeavyBrainController me = (WarHeavyBrainController) bc;
 
-			me.setDebugString("Defend the base");
+			me.setDebugString("Defend");
 
 			if (!me.baseAttacked) {
-				me.ticksNoEnemyMet = 0;
 				me.ctask = me.aStack.pop();
 				return me.idle();
 			} else if (me.tooCloseFromFriend()) {
-				me.wigglingSince = 0;
 				me.aStack.push(me.ctask);
 				me.ctask = wiggleTask;
 				return ACTION_IDLE;
 			}
 
-			if(me.distanceToBase <= (WarRocket.RANGE / 2)) {
-				
-				if(me.ticksNoEnemyMet > 10) {
-					me.setHeading(me.angleToBase);
-					return ACTION_MOVE;
-				} else {
-					for (WarAgentPercept percept : me.percepts) {
-						if (me.isEnemySoldier(percept)) {
-							me.ticksNoEnemyMet = 0;
-							if (me.isReloaded()) {
-								me.setHeading(percept.getAngle());
-								me.setTargetDistance(percept.getDistance());
-								return ACTION_FIRE;
-							} else
-								return ACTION_RELOAD;
-						} else if (percept.getType() == WarAgentType.WarBase && !me.isEnemy(percept)) {
-							me.aStack.push(me.ctask);
-							me.ctask = wiggleTask;
-							return ACTION_IDLE;
-						}
-					}
-					me.ticksNoEnemyMet++;
-					me.setHeading(me.angleToBase - 180);
-					return ACTION_IDLE;
+			for (WarAgentPercept percept : me.percepts) {
+				if (me.isEnemySoldier(percept)) {
+					if (me.isReloaded()) {
+						me.setHeading(percept.getAngle());
+						return ACTION_FIRE;
+					} else
+						return ACTION_RELOAD;
+				} else if (percept.getType() == WarAgentType.WarBase && !me.isEnemy(percept)) {
+					return me.idle();
 				}
 			}
-			
+
 			me.setHeading(me.angleToBase);
+
 			return ACTION_MOVE;
 		}
 	};
@@ -279,13 +245,13 @@ public abstract class WarRocketLauncherBrainController extends WarRocketLauncher
 		for (WarAgentPercept percept : percepts)
 			if (!isEnemy(percept) && (percept.getType().equals(WarAgentType.WarRocketLauncher)
 					|| percept.getType().equals(WarAgentType.WarHeavy)
-					|| percept.getType().equals(WarAgentType.WarLight)
-					|| percept.getType().equals(WarAgentType.WarBase))) {
-			
+					|| percept.getType().equals(WarAgentType.WarLight))) {
+				
 				return true;
 			}
 
 		return false;
 
 	}
+
 }

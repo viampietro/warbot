@@ -1,4 +1,4 @@
-package myteam;
+package myteam_1;
 
 import edu.warbot.agents.agents.WarEngineer;
 import edu.warbot.agents.agents.WarExplorer;
@@ -84,7 +84,7 @@ public abstract class WarBaseBrainController extends WarBaseBrain {
 			broadcastMessageToAgentType(WarAgentType.WarRocketLauncher, "baseIsSafe", "");
 		}
 
-		// Message a  envoyer selon l'etat
+		// Message aï¿½ envoyer selon l'etat
 		if (isBagEmpty())
 			broadcastMessageToAgentType(WarAgentType.WarExplorer, "baseNeedFood", Integer.toString(getID()));
 
