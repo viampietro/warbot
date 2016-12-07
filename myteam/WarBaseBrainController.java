@@ -32,6 +32,9 @@ public abstract class WarBaseBrainController extends WarBaseBrain {
 	
 	private int ticksSinceNoEnemy = 0;
 	private static final int ticksToBeSafe = 100;
+	
+	private double angleEnemyBase;
+	private double distanceEnemyBase;
 
 	public WarBaseBrainController() {
 		super();
@@ -68,9 +71,23 @@ public abstract class WarBaseBrainController extends WarBaseBrain {
 				reply(msg, "baseInfoResponse", Integer.toString(getID()));
 			} else if (msg.getMessage().equals("enemyBaseSpotted") && !enemyBaseSpotted) {
 				setDebugString("Explorers spotted the enemy base");
+				
+				Vector2 exToEBase = new Vector2(Float.valueOf(msg.getContent()[0]), Float.valueOf(msg.getContent()[1]));
+				Vector2 baseToEx = VUtils.cartFromPolaire(msg.getAngle(), msg.getDistance());
+				Vector2 baseToEBase = baseToEx.add(exToEBase);
+				angleEnemyBase = VUtils.polaireFromCart(baseToEBase).x;
+				distanceEnemyBase = VUtils.polaireFromCart(baseToEBase).y;
+				
+				String coord[] = { angleEnemyBase + "", distanceEnemyBase + "" };
+				
+				broadcastMessageToAll("baseEnemyHasFound", coord);
+				
 				enemyBaseSpotted = true;
 				aStack.push(ctask);
 				ctask = createSoldierTask;
+			} else if(msg.getMessage().equals("WhereIsTheEnemyBase")){
+				String coord[] = { angleEnemyBase + "", distanceEnemyBase + "" };
+				reply(msg, "enemyBaseCoord", coord);
 			}
 		}
 
@@ -84,7 +101,7 @@ public abstract class WarBaseBrainController extends WarBaseBrain {
 			broadcastMessageToAgentType(WarAgentType.WarRocketLauncher, "baseIsSafe", "");
 		}
 
-		// Message a  envoyer selon l'etat
+		// Message aï¿½ envoyer selon l'etat
 		if (isBagEmpty())
 			broadcastMessageToAgentType(WarAgentType.WarExplorer, "baseNeedFood", Integer.toString(getID()));
 
